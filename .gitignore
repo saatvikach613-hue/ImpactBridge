@@ -1,0 +1,45 @@
+# Environment variables — NEVER push these
+.env
+.env.local
+.env.production
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Database
+*.db
+*.sqlite3
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# ML models (too large for GitHub)
+*.pkl
+*.joblib
+models/trained/
+
+# Node (for React frontend later)
+node_modules/
+.next/
+build/
