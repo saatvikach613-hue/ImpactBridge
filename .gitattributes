@@ -1,3 +1,12 @@
-impactbridge_dbt/** filter=sql
+# Tell GitHub to treat most Python as 'Background' to let other skills shine
+app/** linguist-vendored
+scripts/** linguist-vendored
+
+# Force detection of SQL and React
+impactbridge_dbt/** linguist-detectable
+impactbridge_dbt/** linguist-language=SQL
+ImpactBridge_Frontend/** linguist-detectable
+
+# Ensure .sql files are always counted
 *.sql linguist-detectable=true
 *.sql linguist-language=SQL
