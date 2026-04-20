@@ -1,0 +1,3 @@
+impactbridge_dbt/** filter=sql
+*.sql linguist-detectable=true
+*.sql linguist-language=SQL
