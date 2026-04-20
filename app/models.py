@@ -37,6 +37,20 @@ class RiskLevel(str, enum.Enum):
     medium = "medium"
     high   = "high"
 
+class EnglishLevel(str, enum.Enum):
+    letter   = "letter"
+    word     = "word"
+    sentence = "sentence"
+    story    = "story"
+    advanced = "advanced"
+
+class MathLevel(str, enum.Enum):
+    pre_number       = "pre_number"
+    number_recognition = "number_recognition"
+    basic_operations = "basic_operations"
+    advanced_operations = "advanced_operations"
+    syllabus_aligned = "syllabus_aligned"
+
 
 # ─────────────────────────────────────────────
 # CHAPTER — U&I branch (Vizag-1, Vizag-2, etc.)
@@ -98,8 +112,8 @@ class Kid(Base):
     chapter_id      = Column(Integer, ForeignKey("chapters.id"), nullable=False)
 
     # academic progress — chapter numbers per subject
-    math_chapter    = Column(Integer, default=1)
-    english_chapter = Column(Integer, default=1)
+    math_level    = Column(Enum(MathLevel), default=MathLevel.pre_number)
+    english_level = Column(Enum(EnglishLevel), default=EnglishLevel.letter)
 
     # what unlocks this kid — the insight Saatvika discovered about drawing
     learning_style  = Column(String(100), nullable=True)   # e.g. "visual", "hands-on"
@@ -200,6 +214,7 @@ class SessionLog(Base):
     # subject taught this session
     subject         = Column(String(50), nullable=False)   # "math" or "english"
     chapter_covered = Column(Integer, nullable=False)
+    level_covered = Column(String(50), nullable=True)  # e.g. "letter", "word", "basic_operations"
 
     # optional volunteer note — feeds NLP later
     notes           = Column(Text, nullable=True)
@@ -254,8 +269,8 @@ class MlPrediction(Base):
     kid_id                  = Column(Integer, ForeignKey("kids.id"), nullable=False)
 
     # Model 1 — Ridge regression output
-    predicted_math_chapter  = Column(Float, nullable=True)   # in 4 weeks
-    predicted_eng_chapter   = Column(Float, nullable=True)
+    predicted_math_level  = Column(String(50), nullable=True)
+    predicted_eng_level   = Column(String(50), nullable=True)
 
     # Model 2 — Random Forest classifier output
     at_risk                 = Column(Boolean, default=False)

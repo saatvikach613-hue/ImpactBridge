@@ -1,0 +1,68 @@
+version: 2
+
+sources:
+  - name: impactbridge
+    database: impactbridge
+    schema: public
+    tables:
+      - name: session_logs
+      - name: kids
+      - name: session_rsvps
+      - name: volunteer_kid_assignments
+
+models:
+  - name: stg_session_logs
+    description: "Cleaned session log data with numeric rating conversion"
+    columns:
+      - name: log_id
+        tests:
+          - unique
+          - not_null
+      - name: rating_num
+        tests:
+          - not_null
+          - accepted_values:
+              values: [1, 2, 3]
+
+  - name: stg_kids
+    description: "Active kids with current chapter positions"
+    columns:
+      - name: kid_id
+        tests:
+          - unique
+          - not_null
+
+  - name: int_kid_features
+    description: "8 engineered features per kid for ML models"
+    columns:
+      - name: kid_id
+        tests:
+          - unique
+          - not_null
+      - name: attendance_rate
+        tests:
+          - not_null
+      - name: avg_rating
+        tests:
+          - not_null
+      - name: current_english_level
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['letter', 'word', 'sentence', 'story', 'advanced']
+      - name: current_math_level
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['pre_number', 'number_recognition', 'basic_operations', 'advanced_operations', 'syllabus_aligned']
+
+  - name: mart_at_risk_kids
+    description: "At-risk classification per kid with risk level and score"
+    columns:
+      - name: kid_id
+        tests:
+          - unique
+          - not_null
+
+  - name: mart_resource_demand
+    description: "Predicted resource needs per kid for next 4 weeks"

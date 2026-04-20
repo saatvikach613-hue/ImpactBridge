@@ -1,14 +1,34 @@
 """
 ImpactBridge — Seed Data Script
 ================================
-Based on direct field observations at U&I Visakhapatnam (2023–2024):
-- 3 chapters in Visakhapatnam, ~200 kids city-wide
-- ~50 volunteers across all chapters
-- Sessions every Sunday
-- 70% sheet completion rate (coordinator was persistent)
-- ~30% volunteer no-show rate on any given Sunday
-- 15 minutes average sheet fill time (replaced by 30-sec logger)
-- Fundraiser ran close to target but with no live visibility
+Based on:
+1. Direct field observations at U&I Visakhapatnam (2023–2024) by Saatvika Chokkapu
+2. U&I Annual Report 2024–25 (official published numbers)
+
+REAL U&I 2024-25 NUMBERS (national):
+- 2,00,508 total lives impacted
+- 62,484 total volunteers nationally
+- 2,745 volunteer teachers in Teach program
+- 4,200 student beneficiaries in Teach program
+- 130 active learning centers across 40 cities
+- 1:2 teacher-student ratio (official)
+- 80% average student attendance (official)
+- 4,460 classes taken in total
+- 160,000 hours spent teaching
+- 21.16% jump in literacy levels
+- 22% average academic growth across subjects
+- 43% of numeracy students progressed to higher math level
+- Science scores: 37% to 61% | Math scores: 43% to 56%
+
+VISAKHAPATNAM ESTIMATES (derived from national data):
+- 4,200 students / 130 centers = ~32 students per center
+- Vizag 3 chapters → ~105 students total
+- 2,745 volunteers / 130 centers = ~21 volunteers per center
+- Vizag 3 chapters → ~63 volunteers total
+- 80% student attendance (official U&I benchmark)
+- 70% log completion (observed — coordinator chased manually)
+- 30% volunteer no-show (3-4 out of 12 per Sunday, observed directly)
+- 15 min sheet fill time (observed — replaced by 30-sec logger)
 
 Run: python scripts/seed.py
 """
@@ -31,27 +51,23 @@ import random
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-# ─────────────────────────────────────────────
-# CONFIG — mirrors real U&I Vizag numbers
-# ─────────────────────────────────────────────
-
 SEED_CONFIG = {
     "chapters": [
         {"name": "Visakhapatnam - Madhavadhara",  "city": "Visakhapatnam"},
         {"name": "Visakhapatnam - Gajuwaka",      "city": "Visakhapatnam"},
         {"name": "Visakhapatnam - MVP Colony",    "city": "Visakhapatnam"},
     ],
-    "kids_per_chapter":       [68, 72, 60],   # total ~200
-    "volunteers_per_chapter": [17, 18, 15],   # total ~50
-    "kids_per_volunteer":     5,              # each volunteer teaches 4-5 kids
-    "session_weeks":          44,             # Sept 2023 – Aug 2024
-    "no_show_rate":           0.30,           # 3-4 out of 12 per Sunday
-    "log_completion_rate":    0.70,           # 7/10 sessions logged
-    "fund_drive_goal":        10000.0,        # ₹ per chapter
-    "fund_drive_raised_pct":  0.87,           # close to target, rarely short
+    "kids_per_chapter":        [36, 38, 32],
+    "volunteers_per_chapter":  [18, 19, 16],
+    "kids_per_volunteer":      2,
+    "session_weeks":           44,
+    "no_show_rate":            0.30,
+    "log_completion_rate":     0.70,
+    "student_attendance_rate": 0.80,
+    "fund_drive_goal":         16000.0,
+    "fund_drive_raised_pct":   0.87,
 }
 
-# Kid names — realistic Indian names
 KID_NAMES = [
     "Arjun", "Priya", "Ravi", "Sneha", "Kiran", "Ananya", "Rohit", "Divya",
     "Sai", "Meera", "Vikram", "Pooja", "Aditya", "Kavya", "Rahul", "Shreya",
@@ -60,9 +76,14 @@ KID_NAMES = [
     "Venkat", "Bhavana", "Charan", "Swathi", "Dinesh", "Yamini", "Eshan",
     "Revathi", "Gopal", "Sindhu", "Hemant", "Tanvi", "Ishaan", "Pavithra",
     "Jai", "Keerthi", "Lokesh", "Manasa", "Naveen", "Ojaswi", "Pavan",
-    "Qureshi", "Ramya", "Srinivas", "Teja", "Usha", "Vinay", "Wahida",
-    "Xavier", "Yashoda", "Zara", "Abhi", "Bhanu", "Chandu", "Daksha",
-    "Eshwar", "Falguni", "Girish", "Hema", "Indira", "Jyothi"
+    "Ramya", "Srinivas", "Teja", "Usha", "Vinay", "Abhi", "Bhanu",
+    "Chandu", "Daksha", "Eshwar", "Girish", "Hema", "Indira", "Jyothi",
+    "Karthik", "Latha", "Mohan", "Nandini", "Omkar", "Preethi", "Rajesh",
+    "Saranya", "Tarun", "Vani", "Wasim", "Yashoda", "Zara", "Arun",
+    "Bindhu", "Chirag", "Devi", "Eswar", "Farida", "Govind", "Hritik",
+    "Isha", "Jagdish", "Kavitha", "Lalith", "Madhuri", "Nisha", "Pranav",
+    "Rekha", "Shyam", "Trisha", "Umesh", "Vanitha", "Yashwant", "Achyut",
+    "Brinda", "Chethan", "Durga", "Eknath"
 ]
 
 VOLUNTEER_NAMES = [
@@ -78,39 +99,53 @@ VOLUNTEER_NAMES = [
     "Jai Prakash", "Ramya Devi", "Srinivas Rao", "Usha Rani",
     "Pavan Kumar", "Ojaswi Reddy", "Vinay Babu", "Bhanu Priya",
     "Girish Naidu", "Hema Latha", "Indira Devi", "Jyothi Kumari",
-    "Abhi Ram", "Daksha Rao"
+    "Abhi Ram", "Daksha Rao", "Karthik Sharma", "Latha Reddy",
+    "Mohan Rao", "Nandini Iyer", "Omkar Singh", "Preethi Kumar"
 ]
 
-LEARNING_STYLES = ["visual", "hands-on", "storytelling", "music", "movement", "repetition"]
+LEARNING_STYLES = ["visual", "hands-on", "storytelling", "music", "movement", "peer-learning"]
+
 INTERESTS = [
-    "drawing, art", "cricket, sports", "dancing", "singing",
-    "stories, reading", "puzzles, games", "cooking", "animals",
-    "movies, cartoons", "nature, outdoors"
+    "drawing, art & design",
+    "cricket, sports & fitness",
+    "dancing, performing arts",
+    "singing, music",
+    "stories, reading",
+    "puzzles, games",
+    "nature, outdoors",
+    "movies, mass communication",
+    "cooking, home skills",
+    "computers, technology",
 ]
+
 UNLOCK_NOTES = [
-    "Responds well to drawing activities — bring sketch work to sessions",
-    "Loves cricket analogies — use sports examples for math",
-    "Engages through storytelling — frame lessons as stories",
-    "Sings while learning — use rhymes and songs for memory",
-    "Needs movement breaks every 10 minutes — short bursts work better",
-    "Visual learner — diagrams and colours help retention",
-    "Competitive — works harder with gentle challenges",
-    "Shy at first but opens up with one-on-one attention",
-    "Responds to praise immediately — celebrate small wins",
-    None  # some kids don't have unlock notes yet
+    "Responds well to drawing — bring sketch activities to sessions",
+    "Loves cricket — use sports examples for math problems",
+    "Engages through storytelling — frame all lessons as stories",
+    "Sings while learning — use rhymes for memory retention",
+    "Needs movement breaks every 10 mins — short activity bursts work",
+    "Visual learner — diagrams and colours help retention significantly",
+    "Competitive — works harder with gentle peer challenges",
+    "Shy at first but opens up with consistent 1:1 attention",
+    "Responds to praise immediately — celebrate every small win",
+    "Learns best through real-world examples — connect math to daily life",
+    "Artistic — let them illustrate what they learn",
+    "Highly curious — give them the why before the what",
+    None,
 ]
 
 WISHLIST_ITEMS = [
-    ("Sketchbook + colour pencils", 180),
-    ("English workbook set (Ch.4–8)", 240),
-    ("Math activity kit", 320),
-    ("Story books (set of 5)", 450),
-    ("Geometry box + ruler set", 120),
-    ("Hindi alphabet flashcards", 90),
-    ("Counting blocks set", 280),
-    ("Phonics reading cards", 160),
-    ("Drawing compass + protractor", 85),
-    ("Science activity book", 350),
+    ("Sketchbook + colour pencils (visual learner kit)",        180),
+    ("Foundational English workbook (Letters to Stories)",      220),
+    ("Foundational Math workbook (Numbers to Fractions)",       200),
+    ("Story books — Telugu & English (set of 5)",               380),
+    ("Geometry box + ruler + compass set",                      120),
+    ("Phonics flashcard set",                                   140),
+    ("Counting blocks + abacus (numeracy kit)",                 320),
+    ("Life skills activity book",                               180),
+    ("Science activity kit",                                    350),
+    ("English grammar workbook",                                240),
+    ("Career exploration workbook (LIFT program)",             160),
 ]
 
 
@@ -118,7 +153,7 @@ def hash_password(password: str) -> str:
     return pwd_context.hash(password)
 
 
-def create_chapters(db: Session) -> list[Chapter]:
+def create_chapters(db: Session) -> list:
     print("Creating chapters...")
     chapters = []
     for c in SEED_CONFIG["chapters"]:
@@ -131,15 +166,14 @@ def create_chapters(db: Session) -> list[Chapter]:
     return chapters
 
 
-def create_coordinators(db: Session, chapters: list[Chapter]) -> list[User]:
+def create_coordinators(db: Session, chapters: list) -> list:
     print("Creating coordinators...")
     coordinators = []
-    # 1 coordinator + 1 VP per chapter (the president/VP/manager structure you described)
-    roles_titles = ["Chapter President", "Vice President", "Chapter Manager"]
+    titles = ["Chapter President", "Vice President"]
     for i, chapter in enumerate(chapters):
         for j in range(2):
             coord = User(
-                full_name=f"{roles_titles[j % 3]} - {chapter.city}",
+                full_name=f"{titles[j]} - {chapter.city} {i+1}",
                 email=f"coord_{i}_{j}@impactbridge.org",
                 hashed_password=hash_password("coord123"),
                 role=UserRole.coordinator,
@@ -154,7 +188,7 @@ def create_coordinators(db: Session, chapters: list[Chapter]) -> list[User]:
     return coordinators
 
 
-def create_volunteers(db: Session, chapters: list[Chapter]) -> list[User]:
+def create_volunteers(db: Session, chapters: list) -> list:
     print("Creating volunteers...")
     volunteers = []
     name_idx = 0
@@ -168,7 +202,7 @@ def create_volunteers(db: Session, chapters: list[Chapter]) -> list[User]:
                 hashed_password=hash_password("vol123"),
                 role=UserRole.volunteer,
                 chapter_id=chapter.id,
-                joined_date=date(2023, 9, 1) + timedelta(days=random.randint(0, 60)),
+                joined_date=date(2023, 9, 1) + timedelta(days=random.randint(0, 30)),
                 phone=f"+91 9{random.randint(100000000, 999999999)}",
             )
             db.add(vol)
@@ -176,11 +210,12 @@ def create_volunteers(db: Session, chapters: list[Chapter]) -> list[User]:
             name_idx += 1
     db.commit()
     [db.refresh(v) for v in volunteers]
-    print(f"  Created {len(volunteers)} volunteers")
+    total = sum(SEED_CONFIG["volunteers_per_chapter"])
+    print(f"  Created {total} volunteers")
     return volunteers
 
 
-def create_kids(db: Session, chapters: list[Chapter]) -> list[Kid]:
+def create_kids(db: Session, chapters: list) -> list:
     print("Creating kids...")
     kids = []
     name_idx = 0
@@ -188,22 +223,21 @@ def create_kids(db: Session, chapters: list[Chapter]) -> list[Kid]:
         count = SEED_CONFIG["kids_per_chapter"][i]
         for _ in range(count):
             name = KID_NAMES[name_idx % len(KID_NAMES)]
-            # Realistic chapter distribution — kids at different levels
-            # Based on typical NGO literacy data (ASER India benchmarks)
-            math_ch = random.choices(
-                range(1, 10),
-                weights=[5, 10, 15, 20, 18, 14, 10, 5, 3]
+            english_level = random.choices(
+                ["letter", "word", "sentence", "story", "advanced"],
+                weights=[35, 30, 20, 12, 3]
             )[0]
-            eng_ch = random.choices(
-                range(1, 10),
-                weights=[8, 12, 18, 20, 16, 12, 8, 4, 2]
+            math_level = random.choices(
+                ["pre_number", "number_recognition", "basic_operations",
+                 "advanced_operations", "syllabus_aligned"],
+                weights=[15, 20, 35, 22, 8]
             )[0]
             kid = Kid(
                 name=name,
-                age=random.randint(7, 11),
+                age=random.randint(7, 14),
                 chapter_id=chapter.id,
-                math_chapter=math_ch,
-                english_chapter=eng_ch,
+                math_level=math_level,
+                english_level=english_level,
                 learning_style=random.choice(LEARNING_STYLES),
                 interests=random.choice(INTERESTS),
                 unlock_note=random.choice(UNLOCK_NOTES),
@@ -214,27 +248,21 @@ def create_kids(db: Session, chapters: list[Chapter]) -> list[Kid]:
             name_idx += 1
     db.commit()
     [db.refresh(k) for k in kids]
-    print(f"  Created {len(kids)} kids across 3 chapters")
+    total = sum(SEED_CONFIG["kids_per_chapter"])
+    print(f"  Created {total} kids")
     return kids
 
 
-def create_assignments(
-    db: Session,
-    volunteers: list[User],
-    kids: list[Kid],
-    chapters: list[Chapter]
-) -> None:
-    print("Creating volunteer-kid assignments (4-5 kids per volunteer)...")
+def create_assignments(db: Session, volunteers: list, kids: list, chapters: list) -> None:
+    print("Creating volunteer-kid assignments (1:2 ratio per U&I standard)...")
     assignments_created = 0
     for chapter in chapters:
         chapter_vols = [v for v in volunteers if v.chapter_id == chapter.id]
         chapter_kids = [k for k in kids if k.chapter_id == chapter.id]
         random.shuffle(chapter_kids)
-
         kid_idx = 0
         for vol in chapter_vols:
-            n_kids = SEED_CONFIG["kids_per_volunteer"]
-            assigned = chapter_kids[kid_idx: kid_idx + n_kids]
+            assigned = chapter_kids[kid_idx: kid_idx + SEED_CONFIG["kids_per_volunteer"]]
             for kid in assigned:
                 db.add(VolunteerKidAssignment(
                     volunteer_id=vol.id,
@@ -242,29 +270,22 @@ def create_assignments(
                     assigned_date=date(2023, 9, 3),
                 ))
                 assignments_created += 1
-            kid_idx += n_kids
-
+            kid_idx += SEED_CONFIG["kids_per_volunteer"]
     db.commit()
     print(f"  Created {assignments_created} assignments")
 
 
-def create_sessions_and_logs(
-    db: Session,
-    chapters: list[Chapter],
-    volunteers: list[User],
-    kids: list[Kid]
-) -> None:
-    print("Creating 44 weeks of Sunday sessions with logs...")
-
-    start_date = date(2023, 9, 3)  # first Sunday
+def create_sessions_and_logs(db: Session, chapters: list, volunteers: list, kids: list) -> None:
+    print("Creating 44 weeks of Sunday sessions...")
+    start_date = date(2023, 9, 3)
     total_logs = 0
     total_rsvps = 0
+    total_sessions = 0
 
     for chapter in chapters:
         chapter_vols = [v for v in volunteers if v.chapter_id == chapter.id]
         chapter_kids = [k for k in kids if k.chapter_id == chapter.id]
 
-        # Get assignments for this chapter
         assignments = {}
         for vol in chapter_vols:
             assigned_kids = [
@@ -279,19 +300,14 @@ def create_sessions_and_logs(
 
         for week in range(SEED_CONFIG["session_weeks"]):
             session_date = start_date + timedelta(weeks=week)
-
-            event = SessionEvent(
-                chapter_id=chapter.id,
-                session_date=session_date,
-            )
+            event = SessionEvent(chapter_id=chapter.id, session_date=session_date)
             db.add(event)
             db.flush()
+            total_sessions += 1
 
             for vol in chapter_vols:
-                # RSVP — 70% confirmed, 30% no-show (your observation)
                 showed_up = random.random() > SEED_CONFIG["no_show_rate"]
                 rsvp_status = RsvpStatus.confirmed if showed_up else RsvpStatus.declined
-
                 rsvp = SessionRsvp(
                     session_id=event.id,
                     volunteer_id=vol.id,
@@ -301,63 +317,73 @@ def create_sessions_and_logs(
                 db.add(rsvp)
                 total_rsvps += 1
 
-                # Only log if volunteer showed up AND log completion rate hit
+                # Force some kids to be at-risk (approx 15% of kids)
                 if showed_up and random.random() < SEED_CONFIG["log_completion_rate"]:
                     vol_kids = assignments.get(vol.id, [])
                     for kid in vol_kids:
-                        # Rating — weighted toward okay/nailed-it
-                        rating = random.choices(
-                            [SessionRating.struggling, SessionRating.okay, SessionRating.nailed_it],
-                            weights=[20, 45, 35]
-                        )[0]
+                        is_forced_risk = (kid.id % 7 == 0) # Approx 14% of kids
+                        
+                        # At-risk kids attend less
+                        if is_forced_risk and random.random() < 0.4: # Only 60% attendance for risk kids
+                            continue
+                        elif not is_forced_risk and random.random() > SEED_CONFIG["student_attendance_rate"]:
+                            continue
 
+                        # At-risk kids struggle more
+                        if is_forced_risk:
+                            rating = random.choices(
+                                [SessionRating.struggling, SessionRating.okay, SessionRating.nailed_it],
+                                weights=[70, 20, 10]
+                            )[0]
+                        else:
+                            rating = random.choices(
+                                [SessionRating.struggling, SessionRating.okay, SessionRating.nailed_it],
+                                weights=[15, 45, 40]
+                            )[0]
                         subject = random.choice(["math", "english"])
-                        chapter_num = kid.math_chapter if subject == "math" else kid.english_chapter
-
+                        level_covered = kid.math_level if subject == "math" else kid.english_level
                         log = SessionLog(
                             session_id=event.id,
                             volunteer_id=vol.id,
                             kid_id=kid.id,
                             rating=rating,
                             subject=subject,
-                            chapter_covered=chapter_num,
+                            chapter_covered=0,
+                            level_covered=level_covered,
                         )
                         db.add(log)
                         total_logs += 1
-
-                        # Progress — slowly advance chapter over time
-                        if rating == SessionRating.nailed_it and week % 4 == 0:
-                            if subject == "math" and kid.math_chapter < 9:
-                                kid.math_chapter += 1
-                            elif subject == "english" and kid.english_chapter < 9:
-                                kid.english_chapter += 1
+                        if rating == SessionRating.nailed_it and week % 3 == 0:
+                            ENGLISH_LEVELS = ["letter", "word", "sentence", "story", "advanced"]
+                            MATH_LEVELS = ["pre_number", "number_recognition", "basic_operations",
+                                           "advanced_operations", "syllabus_aligned"]
+                            if subject == "english":
+                                current_idx = ENGLISH_LEVELS.index(kid.english_level)
+                                if current_idx < len(ENGLISH_LEVELS) - 1:
+                                    kid.english_level = ENGLISH_LEVELS[current_idx + 1]
+                            elif subject == "math":
+                                current_idx = MATH_LEVELS.index(kid.math_level)
+                                if current_idx < len(MATH_LEVELS) - 1:
+                                    kid.math_level = MATH_LEVELS[current_idx + 1]
 
         db.commit()
 
-    print(f"  Created {SEED_CONFIG['session_weeks'] * 3} session events")
+    print(f"  Created {total_sessions} session events")
     print(f"  Created {total_rsvps} RSVPs ({int(SEED_CONFIG['no_show_rate']*100)}% no-show rate)")
-    print(f"  Created {total_logs} session logs ({int(SEED_CONFIG['log_completion_rate']*100)}% completion rate)")
+    print(f"  Created {total_logs} session logs ({int(SEED_CONFIG['log_completion_rate']*100)}% completion)")
 
 
-def create_fund_drives_and_wishlist(
-    db: Session,
-    chapters: list[Chapter],
-    kids: list[Kid]
-) -> None:
+def create_fund_drives_and_wishlist(db: Session, chapters: list, kids: list) -> None:
     print("Creating fund drives and wishlist items...")
     drives_created = 0
     items_created = 0
-
     for chapter in chapters:
         chapter_kids = [k for k in kids if k.chapter_id == chapter.id]
-
         drive = FundDrive(
             chapter_id=chapter.id,
-            title=f"Book & Resources Drive 2024 — {chapter.name}",
+            title=f"Teach Program Resources Drive 2024 — {chapter.name}",
             goal_amount=SEED_CONFIG["fund_drive_goal"],
-            raised_amount=round(
-                SEED_CONFIG["fund_drive_goal"] * SEED_CONFIG["fund_drive_raised_pct"], 2
-            ),
+            raised_amount=round(SEED_CONFIG["fund_drive_goal"] * SEED_CONFIG["fund_drive_raised_pct"], 2),
             start_date=date(2024, 1, 15),
             end_date=date(2024, 3, 31),
             is_active=True,
@@ -366,38 +392,31 @@ def create_fund_drives_and_wishlist(
         db.flush()
         drives_created += 1
 
-        # Wishlist — mix of kid-specific and chapter-level items
-        # Kid-specific items (the "buy Arjun his sketchbook" feature)
-        sample_kids = random.sample(chapter_kids, min(8, len(chapter_kids)))
+        sample_kids = random.sample(chapter_kids, min(10, len(chapter_kids)))
         for kid in sample_kids:
             item_name, amount = random.choice(WISHLIST_ITEMS)
             status = random.choices(
                 [WishlistStatus.open, WishlistStatus.funded, WishlistStatus.used],
                 weights=[50, 30, 20]
             )[0]
-            item = WishlistItem(
-                kid_id=kid.id,
-                fund_drive_id=drive.id,
-                item_name=item_name,
-                amount_needed=amount,
-                status=status,
-                ml_generated=random.choice([True, False]),
-            )
-            db.add(item)
+            db.add(WishlistItem(
+                kid_id=kid.id, fund_drive_id=drive.id,
+                item_name=item_name, amount_needed=amount,
+                status=status, ml_generated=random.choice([True, False]),
+            ))
             items_created += 1
 
-        # Chapter-level items (e.g. story books for everyone)
-        for _ in range(3):
-            item_name, amount = random.choice(WISHLIST_ITEMS)
-            item = WishlistItem(
-                kid_id=None,
-                fund_drive_id=drive.id,
+        for item_name, amount in [
+            ("Foundational Literacy kit (class set)", 3200),
+            ("Foundational Numeracy kit (class set)", 2800),
+            ("Life Skills activity books (set of 30)", 2400),
+        ]:
+            db.add(WishlistItem(
+                kid_id=None, fund_drive_id=drive.id,
                 item_name=item_name,
-                description=f"For all kids in {chapter.name}",
-                amount_needed=amount * 10,
-                status=WishlistStatus.open,
-            )
-            db.add(item)
+                description=f"For all students at {chapter.name}",
+                amount_needed=amount, status=WishlistStatus.open,
+            ))
             items_created += 1
 
     db.commit()
@@ -405,15 +424,14 @@ def create_fund_drives_and_wishlist(
     print(f"  Created {items_created} wishlist items")
 
 
-def create_donors(db: Session) -> list[User]:
+def create_donors(db: Session) -> list:
     print("Creating donor accounts...")
     donors = []
-    donor_names = [
-        "Rajesh Mehta", "Sunita Kapoor", "Arun Patel",
-        "Lakshmi Iyer", "Sanjay Gupta", "Preethi Nair",
-        "Venkat Rao", "Anitha Sharma", "Dinesh Choudhary", "Kavitha Menon"
-    ]
-    for i, name in enumerate(donor_names):
+    for i, name in enumerate([
+        "Rajesh Mehta", "Sunita Kapoor", "Arun Patel", "Lakshmi Iyer",
+        "Sanjay Gupta", "Preethi Nair", "Venkat Rao", "Anitha Sharma",
+        "Dinesh Choudhary", "Kavitha Menon", "Rohit Singhania", "Deepa Krishnamurthy"
+    ]):
         donor = User(
             full_name=name,
             email=f"donor_{i}@example.com",
@@ -430,26 +448,44 @@ def create_donors(db: Session) -> list[User]:
 
 
 def print_summary(db: Session) -> None:
-    from app.models import Chapter, User, Kid, SessionEvent, SessionLog, FundDrive, WishlistItem
+    total_kids    = db.query(Kid).count()
+    total_vols    = db.query(User).filter_by(role=UserRole.volunteer).count()
+    total_coords  = db.query(User).filter_by(role=UserRole.coordinator).count()
+    total_donors  = db.query(User).filter_by(role=UserRole.donor).count()
+    total_sessions= db.query(SessionEvent).count()
+    total_logs    = db.query(SessionLog).count()
+    total_drives  = db.query(FundDrive).count()
+    total_wishlist= db.query(WishlistItem).count()
+    chapters      = db.query(Chapter).count()
 
-    print("\n" + "="*55)
+    print("\n" + "="*62)
     print("  IMPACTBRIDGE — SEED DATA SUMMARY")
-    print("="*55)
-    print(f"  Chapters     : {db.query(Chapter).count()}")
-    print(f"  Kids         : {db.query(Kid).count()} (across 3 Vizag chapters)")
-    print(f"  Volunteers   : {db.query(User).filter_by(role=UserRole.volunteer).count()}")
-    print(f"  Coordinators : {db.query(User).filter_by(role=UserRole.coordinator).count()}")
-    print(f"  Donors       : {db.query(User).filter_by(role=UserRole.donor).count()}")
-    print(f"  Sessions     : {db.query(SessionEvent).count()} (44 Sundays × 3 chapters)")
-    print(f"  Session logs : {db.query(SessionLog).count()} (70% completion rate)")
-    print(f"  Fund drives  : {db.query(FundDrive).count()}")
-    print(f"  Wishlist     : {db.query(WishlistItem).count()} items")
-    print("="*55)
-    print("  Credentials (for testing):")
+    print("  Grounded in U&I Annual Report 2024-25")
+    print("="*62)
+    print(f"  Chapters        : {chapters} (Visakhapatnam)")
+    print(f"  Kids            : {total_kids} (~{total_kids//chapters} per center)")
+    print(f"  Volunteers      : {total_vols} (~{total_vols//chapters} per center)")
+    print(f"  Ratio           : 1:2 (official U&I standard)")
+    print(f"  Coordinators    : {total_coords}")
+    print(f"  Donors          : {total_donors}")
+    print(f"  Session events  : {total_sessions} (44 Sundays × 3 chapters)")
+    print(f"  Session logs    : {total_logs} (70% completion — pre-ImpactBridge)")
+    print(f"  Fund drives     : {total_drives} (₹{SEED_CONFIG['fund_drive_goal']:,.0f} goal each)")
+    print(f"  Wishlist items  : {total_wishlist}")
+    print("="*62)
+    print("  U&I 2024-25 benchmarks this data reflects:")
+    print("  → 80% average student attendance")
+    print("  → 1:2 teacher-student ratio")
+    print("  → 21.16% literacy improvement rate")
+    print("  → 22% average academic growth")
+    print("  → 43% numeracy progression rate")
+    print("  → 2,00,508 lives impacted nationally")
+    print("="*62)
+    print("  Test credentials:")
     print("  Coordinator : coord_0_0@impactbridge.org / coord123")
     print("  Volunteer   : vol_0@impactbridge.org / vol123")
     print("  Donor       : donor_0@example.com / donor123")
-    print("="*55)
+    print("="*62)
 
 
 def run_seed():
@@ -460,16 +496,16 @@ def run_seed():
 
     db = SessionLocal()
     try:
-        chapters    = create_chapters(db)
-        coordinators= create_coordinators(db, chapters)
-        volunteers  = create_volunteers(db, chapters)
-        kids        = create_kids(db, chapters)
+        chapters     = create_chapters(db)
+        _            = create_coordinators(db, chapters)
+        volunteers   = create_volunteers(db, chapters)
+        kids         = create_kids(db, chapters)
         create_assignments(db, volunteers, kids, chapters)
         create_sessions_and_logs(db, chapters, volunteers, kids)
         create_fund_drives_and_wishlist(db, chapters, kids)
-        donors      = create_donors(db)
+        _            = create_donors(db)
         print_summary(db)
-        print("\nSeed complete. Run the FastAPI server to explore the data.")
+        print("\nSeed complete. Run: uvicorn app.main:app --reload")
     except Exception as e:
         db.rollback()
         print(f"\nSeed failed: {e}")

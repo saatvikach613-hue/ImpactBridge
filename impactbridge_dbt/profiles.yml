@@ -1,0 +1,12 @@
+impactbridge_dbt:
+  outputs:
+    dev:
+      type: postgres
+      host: localhost
+      port: 5433
+      user: postgres
+      password: "7613"
+      dbname: impactbridge
+      schema: analytics
+      threads: 4
+  target: dev

@@ -1,0 +1,100 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+/* ============================================================
+   IMPACTBRIDGE — DESIGN SYSTEM
+   All colours, fonts, and spacing live here.
+   Change these variables and the whole app updates.
+   ============================================================ */
+
+:root {
+
+  /* ── PRIMARY COLOUR — change this to change the whole app ──
+     Current: Red and white minimalist
+     To try green: replace #dc2626 with #16a34a etc.
+  ── */
+  --primary-900: #7f0000;
+  --primary-800: #991b1b;
+  --primary-700: #b91c1c;
+  --primary-600: #dc2626;   /* ← MAIN COLOUR — buttons, accents */
+  --primary-500: #ef4444;
+  --primary-400: #f87171;
+  --primary-100: #fee2e2;
+  --primary-50:  #fff5f5;
+
+  /* ── NEUTRALS ── */
+  --white:     #ffffff;
+  --gray-50:   #f9fafb;     /* page background */
+  --gray-100:  #f3f4f6;     /* subtle backgrounds */
+  --gray-200:  #e5e7eb;     /* borders */
+  --gray-300:  #d1d5db;     /* dividers */
+  --gray-400:  #9ca3af;     /* placeholders */
+  --gray-500:  #6b7280;     /* secondary text */
+  --gray-700:  #374151;     /* body text */
+  --gray-900:  #111827;     /* headings */
+
+  /* ── STATUS ── */
+  --success:    #16a34a;
+  --success-bg: #dcfce7;
+  --warning:    #d97706;
+  --warning-bg: #fef3c7;
+
+  /* ── FONT —
+     To change: replace 'Inter' here AND in @import above
+     Good options: 'Outfit', 'Nunito', 'Plus Jakarta Sans'
+  ── */
+  --font: 'Inter', system-ui, sans-serif;
+
+  /* ── BORDER RADIUS ── */
+  --radius-sm:   4px;
+  --radius-md:   8px;
+  --radius-lg:   12px;
+  --radius-xl:   16px;
+  --radius-full: 9999px;
+
+  /* ── SHADOWS ── */
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
+  --shadow-md: 0 4px 6px rgba(0,0,0,0.07);
+}
+
+/* ── RESET ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 16px; -webkit-font-smoothing: antialiased; }
+body {
+  font-family: var(--font);
+  background: var(--gray-50);
+  color: var(--gray-700);
+  line-height: 1.6;
+  min-height: 100vh;
+}
+
+h1 { font-size: 26px; font-weight: 700; color: var(--gray-900); line-height: 1.25; }
+h2 { font-size: 20px; font-weight: 600; color: var(--gray-900); line-height: 1.3; }
+h3 { font-size: 15px; font-weight: 600; color: var(--gray-900); }
+p  { font-size: 14px; color: var(--gray-500); }
+a  { color: inherit; text-decoration: none; }
+
+input, select, textarea {
+  font-family: var(--font);
+  font-size: 14px;
+  color: var(--gray-900);
+  background: var(--white);
+  border: 1.5px solid var(--gray-200);
+  border-radius: var(--radius-md);
+  padding: 9px 12px;
+  width: 100%;
+  outline: none;
+  transition: border-color 0.15s;
+}
+input:focus { border-color: var(--primary-500); }
+
+button { cursor: pointer; font-family: var(--font); border: none; outline: none; transition: all 0.15s; }
+
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--gray-300); border-radius: 3px; }
+
+.visually-hidden {
+  position: absolute; width: 1px; height: 1px;
+  padding: 0; margin: -1px; overflow: hidden;
+  clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+}

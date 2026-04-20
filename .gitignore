@@ -1,7 +1,7 @@
 # Environment variables — NEVER push these
 .env
-.env.local
-.env.production
+.env.*
+!.env.example
 
 # Python
 __pycache__/
@@ -16,10 +16,12 @@ venv/
 dist/
 build/
 *.egg
+.pytest_cache/
 
 # Database
 *.db
 *.sqlite3
+test.db
 
 # IDE
 .vscode/
@@ -30,8 +32,11 @@ build/
 # OS
 .DS_Store
 Thumbs.db
+.AppleDouble
+.LSOverride
 
 # Logs
+logs/
 *.log
 
 # ML models (too large for GitHub)
@@ -39,7 +44,10 @@ Thumbs.db
 *.joblib
 models/trained/
 
-# Node (for React frontend later)
+# Node
 node_modules/
 .next/
 build/
+dist/
+.npm
+package-lock.json
