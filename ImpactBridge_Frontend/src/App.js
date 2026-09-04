@@ -4,6 +4,7 @@ import LoginPage    from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import SessionPage  from './pages/SessionPage';
 import WishlistPage from './pages/WishlistPage';
+import RsvpPage     from './pages/RsvpPage';
 import { getRole }  from './api/client';
 
 function PrivateRoute({ children, roles }) {
@@ -30,6 +31,8 @@ export default function App() {
           </PrivateRoute>
         } />
         <Route path="/wishlist" element={<WishlistPage />} />
+        {/* Public, token-protected: one-tap confirm/decline from the Thursday email */}
+        <Route path="/rsvp/:sessionId/:volunteerId" element={<RsvpPage />} />
         <Route path="/" element={<Navigate to="/login" />} />
         <Route path="*" element={<Navigate to="/login" />} />
       </Routes>

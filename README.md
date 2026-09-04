@@ -82,9 +82,37 @@ flowchart TD
     I --> M[Donor funds an item]
     M --> N[Item used in session]
     N --> O[Donor gets automatic\nimpact card]
+
+    X[GitHub Actions cron\nUTC schedule] -. X-Automation-Key .-> Y[/automation/trigger/*]
+    Y --> J
+    Y --> L
+    Y --> G
+    Y --> H
+    G & H & J & L --> Z[(automation_runs +\nautomation_logs)]
+    Z --> W[Dashboard → Automation tab\nhealth · adoption · audit log]
 ```
 
 Four scheduled jobs run this cycle without anyone touching a spreadsheet: RSVP reminders (Thursday), unconfirmed volunteer alerts (Friday), the full ML pipeline (Sunday night), and the at-risk digest (Monday morning). A fifth, the donor impact card, fires on demand the moment a funded item is actually used in a session, closing the loop between a donation and its real-world effect.
+
+Every job is fired two ways on purpose: by the in-process APScheduler while the API is awake, and by a GitHub Actions cron that calls the same trigger endpoints with a shared key, so a sleeping free-tier dyno can't silently skip Thursday's reminders. Each run writes a row to `automation_runs`, and each email writes a row to `automation_logs`, which is what the dashboard's Automation tab reads.
+
+### Making the automation observable
+
+The **Automation** tab in the coordinator dashboard answers the three questions an operations reviewer actually asks:
+
+| Question | Where it's answered | Source |
+|----------|---------------------|--------|
+| Did each job run, and did it succeed? | Job health table: last run, outcome, one-line summary, 30-day success rate, "Run now" | `automation_runs` via `GET /automation/health` |
+| Is anyone using it, and did it help? | Adoption cards: session-log completion vs the 70% baseline, RSVP response rate, estimated volunteer hours saved, coordinator messages avoided | `GET /dashboard/adoption` |
+| What exactly went out, to whom? | Audit log of every automated email with status | `automation_logs` via `GET /automation/logs` |
+
+### One-tap RSVP (the loop that was missing)
+
+The Thursday email links to `/rsvp/{session}/{volunteer}?token=…`. The token is an HMAC bound to that exact session and volunteer, so a forwarded link can't confirm on someone else's behalf, and no login is needed. Tapping *Confirm* or *Can't make it* hits `POST /sessions/{id}/rsvp/{volunteer}/respond`, which verifies the token, rejects past sessions, and is idempotent.
+
+### Plain-English Monday digest (optional LLM)
+
+If `ANTHROPIC_API_KEY` is set, the at-risk digest opens with a 4–7 sentence briefing that groups kids by shared reason ("three kids missed two sessions in a row") and says who to check on first. The model only rephrases facts the ML pipeline already produced; the prompt forbids advice, diagnoses, and speculation. If the key is missing, the call fails, or the output drops a kid's name, the email falls back to the plain list. The email always goes out.
 
 ---
 
@@ -96,7 +124,10 @@ Four scheduled jobs run this cycle without anyone touching a spreadsheet: RSVP r
 | **Backend** | Python, FastAPI, SQLAlchemy, PostgreSQL |
 | **Data Engineering** | dbt (5 models, 16 tests), SQL (CTEs, Window Functions) |
 | **Machine Learning** | scikit-learn (Random Forest, Ridge Regression), SMOTE, joblib |
-| **Automation** | APScheduler, SendGrid |
+| **Automation** | APScheduler (in-process) + GitHub Actions cron (external), SendGrid, HMAC-signed one-tap links |
+| **Observability** | `automation_runs` / `automation_logs` tables, Automation tab (health, adoption, audit log) |
+| **LLM (optional)** | Anthropic Claude Haiku for the Monday briefing, deterministic fallback |
+| **Tests** | pytest (token signing, adoption metrics, digest guardrails), dbt tests |
 | **Frontend** | React, React Router, Recharts |
 
 ### Machine learning pipeline
@@ -121,6 +152,11 @@ This wasn't built in one pass. A few real decisions and course corrections shape
 - **Schema first, features second.** I started by designing the PostgreSQL schema and seeding realistic data (Phase 1) before writing a single line of ML code, because a prediction layer built on a shaky data model isn't worth trusting.
 - **Deployment forced a real fix, not a workaround.** After the initial release, moving to Railway's managed PostgreSQL broke the app's database connection handling. Rather than patch around it, I went back and fixed the `DATABASE_URL` configuration properly so the app would reconnect reliably in production, not just in local development.
 - **dbt as the trust layer, not an afterthought.** Early on, features for the ML models were closer to raw SQL queries scattered across the codebase. I consolidated that logic into a proper dbt layer, staging models, an intermediate feature model, and marts, with 16 tests, specifically so a wrong number could be caught before it reached a coordinator's dashboard.
+- **The audit log wasn't actually logging.** `email_service.py` and `/automation/logs` were written against an `AutomationLog` table that was never defined, and the write was wrapped in a bare `except: pass`, so every email "logged" silently went nowhere. I defined the model, added `AutomationRun` for job-level tracking, and built the Automation tab on top so the gap can't hide again.
+- **The RSVP link went to a page that didn't exist.** Emails linked to `/rsvp/...` with a "Phase 5" comment. I built the page, the signed-token endpoint behind it, and tests for the token so the most visible step of the automation actually closes.
+- **Scheduler reliability on free tiers.** An in-process scheduler only fires while the dyno is awake. Rather than pay for an always-on host, I added a GitHub Actions cron that wakes the API and calls the same trigger endpoints with a shared key, and recorded `triggered_by` on every run so the dashboard shows which path fired.
+- **Frontend was unbuildable from the repo.** `package.json` was never committed, `Public/` was capitalised (fine on macOS, fatal on Linux build servers), and API calls were relative paths that 404 in production. Fixed all three, and the build now passes under `CI=true`, which is what Vercel uses.
+- **Measure adoption, not just uptime.** Added `/dashboard/adoption` so the platform reports session-log completion against the pre-ImpactBridge 70% baseline and RSVP response rates, with estimates clearly labelled as estimates.
 
 ---
 
@@ -152,11 +188,25 @@ This wasn't built in one pass. A few real decisions and course corrections shape
    Rename `.env.example` to `.env` and fill in your database credentials.
 3. **Run**:
 ```bash
-   # Backend
+   # Backend (http://localhost:8000, docs at /docs)
    uvicorn app.main:app --reload
-   # Frontend
-   npm run dev
+   # Frontend (http://localhost:3000, proxies API calls to :8000)
+   cd ImpactBridge_Frontend && npm start
 ```
+4. **Tests** (no database needed):
+```bash
+   pytest -q tests
+```
+
+### Deploying
+
+| Piece | Where | What to set |
+|-------|-------|-------------|
+| Backend | Railway / Render (Procfile included, Python 3.11) | `DATABASE_URL`, `SECRET_KEY`, `FRONTEND_URL`, `AUTOMATION_API_KEY`, optional `SENDGRID_API_KEY`, optional `ANTHROPIC_API_KEY` |
+| Frontend | Vercel, root directory `ImpactBridge_Frontend` | `REACT_APP_API_URL` = backend URL (no trailing slash) |
+| Scheduler | GitHub Actions (already in `.github/workflows/automation.yml`) | repo secrets `BACKEND_URL`, `AUTOMATION_API_KEY` |
+
+`FRONTEND_URL` on the backend and the Vercel project URL must match, since every email link is built from it and CORS is scoped to it.
 
 ---
 

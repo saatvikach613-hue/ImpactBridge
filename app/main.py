@@ -6,6 +6,7 @@ from app.database import engine
 from app.models import Base
 from app.api import auth, kids, sessions, dashboard, wishlist, ml
 from app.api.automation import router as automation_router
+from app.config import FRONTEND_URL, EXTRA_CORS_ORIGINS
 
 load_dotenv()
 
@@ -40,7 +41,9 @@ U&I: 62,484 volunteers | 2,00,508 lives impacted | 40 cities (2024-25)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "https://impactbridge.vercel.app"],
+    allow_origins=["http://localhost:3000", FRONTEND_URL, *EXTRA_CORS_ORIGINS],
+    # Also allow any Vercel preview deployment of this project
+    allow_origin_regex=r"https://impactbridge[a-z0-9-]*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

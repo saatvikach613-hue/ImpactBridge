@@ -7,9 +7,9 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   LineChart, Line, CartesianGrid, Legend,
   PieChart, Pie, Cell,
-  ScatterChart, Scatter, ZAxis,
   AreaChart, Area,
 } from 'recharts';
+import AutomationTab from './AutomationTab';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const RED    = '#dc2626';
@@ -111,8 +111,6 @@ export default function DashboardPage() {
   if (loading) return <Loader />;
 
   const stats      = dashboard?.stats || {};
-  const alerts     = dashboard?.alerts || [];
-  const atRisk     = predictions.filter(p => p.at_risk);
   const highRisk   = predictions.filter(p => p.risk_level === 'high');
   const atRiskVols = VOLUNTEER_DATA.filter(v => v.reliability < 70);
 
@@ -131,6 +129,7 @@ export default function DashboardPage() {
     { id: 'volunteers', label: '👥 Volunteers' },
     { id: 'kids',       label: '🎒 Kids' },
     { id: 'funds',      label: '💰 Funds' },
+    { id: 'automation', label: '⚙️ Automation' },
   ];
 
   return (
@@ -186,6 +185,7 @@ export default function DashboardPage() {
         {activeTab === 'volunteers' && <VolunteersTab />}
         {activeTab === 'kids'       && <KidsTab predictions={predictions} kids={kids} />}
         {activeTab === 'funds'      && <FundsTab stats={stats} />}
+        {activeTab === 'automation' && <AutomationTab />}
       </main>
     </div>
   );
@@ -362,10 +362,6 @@ function AnalysisTab({ predictions, kids, chapters }) {
     count: kids.filter(k => (k.english_level?.value || k.english_level) === l).length,
   }));
 
-  const mathDist = MATH_LEVELS.map(l => ({
-    level: LEVEL_LABELS[l],
-    count: kids.filter(k => (k.math_level?.value || k.math_level) === l).length,
-  }));
 
   const high   = predictions.filter(p => p.risk_level === 'high').length;
   const medium = predictions.filter(p => p.risk_level === 'medium').length;
@@ -549,7 +545,6 @@ function AnalysisTab({ predictions, kids, chapters }) {
 // ── VOLUNTEERS TAB ────────────────────────────────────────────────────────────
 function VolunteersTab() {
   const atRisk = VOLUNTEER_DATA.filter(v => v.reliability < 70);
-  const stable = VOLUNTEER_DATA.filter(v => v.reliability >= 70);
 
   return (
     <div style={s.content}>
@@ -692,7 +687,6 @@ function KidsTab({ predictions, kids }) {
 function FundsTab({ stats }) {
   const fundingGap  = 16000 - FUND_TREND[FUND_TREND.length - 1].raised;
   const burnRate    = Math.round(FUND_TREND[FUND_TREND.length - 1].raised / 4);
-  const weeksLeft   = Math.round(FUND_TREND[FUND_TREND.length - 1].raised / burnRate);
   const fundingPct  = Math.round((FUND_TREND[FUND_TREND.length - 1].raised / 16000) * 100);
 
   return (

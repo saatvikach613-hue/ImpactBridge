@@ -31,8 +31,11 @@ from app.automation.email_service import (
     send_donor_impact_card,
     send_at_risk_digest,
 )
+from app.automation.rsvp_tokens import build_rsvp_url
+from app.automation.tracking import tracked_job
 
 
+@tracked_job("rsvp_reminders")
 def job_send_rsvp_reminders():
     """
     Runs every Thursday at 8pm.
@@ -59,7 +62,7 @@ def job_send_rsvp_reminders():
 
         if not sessions:
             print(f"  No sessions found for {next_sunday}")
-            return
+            return f"no sessions on {next_sunday}"
 
         for session in sessions:
             chapter = db.query(Chapter).filter_by(id=session.chapter_id).first()
@@ -94,8 +97,8 @@ def job_send_rsvp_reminders():
                     db.add(rsvp)
                     db.flush()
 
-                # Build confirm URL (frontend will handle this in Phase 5)
-                confirm_url = f"https://impactbridge.vercel.app/rsvp/{session.id}/{vol.id}"
+                # Signed one-tap confirm URL (handled by the /rsvp/:session/:volunteer page)
+                confirm_url = build_rsvp_url(session.id, vol.id)
 
                 success = send_rsvp_reminder(
                     volunteer_email=vol.email,
@@ -112,14 +115,17 @@ def job_send_rsvp_reminders():
 
         db.commit()
         print(f"  RSVP reminders sent: {sent} | Already responded: {skipped}")
+        return f"sent {sent}, already responded {skipped}"
 
     except Exception as e:
         db.rollback()
         print(f"  RSVP reminder job failed: {e}")
+        raise
     finally:
         db.close()
 
 
+@tracked_job("unconfirmed_alert")
 def job_check_unconfirmed_volunteers():
     """
     Runs every Friday at 8am.
@@ -130,6 +136,8 @@ def job_check_unconfirmed_volunteers():
     """
     print(f"\n[SCHEDULER] Checking unconfirmed volunteers — {datetime.now()}")
     db = SessionLocal()
+    alerts_sent = 0
+    unconfirmed_total = 0
 
     try:
         today       = date.today()
@@ -173,6 +181,7 @@ def job_check_unconfirmed_volunteers():
 
             if not unconfirmed_list:
                 continue
+            unconfirmed_total += len(unconfirmed_list)
 
             # Alert coordinators for this chapter
             coordinators = db.query(User).filter_by(
@@ -191,14 +200,19 @@ def job_check_unconfirmed_volunteers():
                     db=db
                 )
                 print(f"  Alert sent to {coord.full_name} — {len(unconfirmed_list)} unconfirmed")
+                alerts_sent += 1
+
+        return f"{unconfirmed_total} unconfirmed volunteers, {alerts_sent} coordinator alerts sent"
 
     except Exception as e:
         db.rollback()
         print(f"  Unconfirmed check failed: {e}")
+        raise
     finally:
         db.close()
 
 
+@tracked_job("ml_pipeline")
 def job_run_ml_pipeline():
     """
     Runs every Sunday at 11pm.
@@ -212,10 +226,13 @@ def job_run_ml_pipeline():
         from app.ml.pipeline import run_pipeline
         results = run_pipeline(retrain=False)
         print(f"  ML pipeline complete: {results}")
+        return f"pipeline complete: {str(results)[:300]}"
     except Exception as e:
         print(f"  ML pipeline failed: {e}")
+        raise
 
 
+@tracked_job("at_risk_digest")
 def job_send_at_risk_digest():
     """
     Runs every Monday at 7am.
@@ -223,6 +240,8 @@ def job_send_at_risk_digest():
     """
     print(f"\n[SCHEDULER] Sending at-risk digest — {datetime.now()}")
     db = SessionLocal()
+    digests_sent = 0
+    kids_flagged = 0
 
     try:
         chapters = db.query(Chapter).filter_by(is_active=True).all()
@@ -286,10 +305,15 @@ def job_send_at_risk_digest():
                     db=db
                 )
                 print(f"  Digest sent to {coord.full_name} — {len(at_risk_kids)} kids flagged")
+                digests_sent += 1
+            kids_flagged += len(at_risk_kids)
+
+        return f"{kids_flagged} kids flagged, {digests_sent} digests sent"
 
     except Exception as e:
         db.rollback()
         print(f"  At-risk digest failed: {e}")
+        raise
     finally:
         db.close()
 

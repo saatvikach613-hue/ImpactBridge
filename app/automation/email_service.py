@@ -20,6 +20,7 @@ import os
 import json
 from datetime import datetime
 from sqlalchemy.orm import Session
+from app.config import FRONTEND_URL
 
 
 def _is_dev_mode() -> bool:
@@ -67,8 +68,8 @@ This is a reminder for your U&I Teach session this Sunday ({session_date}) at {c
 
 Please confirm your attendance by Friday evening:
 
-✓ Confirm:  {confirm_url}?response=confirmed
-✗ Decline:  {confirm_url}?response=declined
+✓ Confirm:  {confirm_url}&response=confirmed
+✗ Decline:  {confirm_url}&response=declined
 
 Your 2 students are counting on you. If you can't make it, please let us know early so we can arrange coverage.
 
@@ -192,7 +193,7 @@ The {item_name} you funded was used by {kid_name} in their U&I session at {chapt
 Your contribution is directly helping a child learn and grow. Thank you for being part of this.
 
 If you'd like to fund another resource for a child at {chapter_name}, visit our wishlist:
-https://impactbridge.vercel.app/wishlist?chapter={chapter_name}
+{FRONTEND_URL}/wishlist?chapter={chapter_name}
 
 With gratitude,
 The U&I {chapter_name} Team
@@ -242,23 +243,28 @@ def send_at_risk_digest(
     if not at_risk_kids:
         return True
 
-    kids_list = "\n".join([
-        f"  - {k['name']} | English: {k['english_level']} | Math: {k['math_level']} | Reason: {k['risk_reason']}"
-        for k in at_risk_kids
-    ])
+    from app.automation.digest_writer import write_digest, format_fallback
+
+    # Plain-English briefing if an LLM key is configured; bullet list otherwise.
+    narrative, source = write_digest(chapter_name, at_risk_kids)
+    kids_list = format_fallback(at_risk_kids)
+    briefing_block = (
+        f"{narrative}\n\nFull list:\n{kids_list}" if source == "llm" else kids_list
+    )
+
     subject = f"[U&I {chapter_name}] {len(at_risk_kids)} kids flagged as at-risk this week"
     body = f"""
 Hi {coordinator_name},
 
-The ImpactBridge ML model ran last night and flagged the following kids as at-risk at {chapter_name}:
+The ImpactBridge ML model ran last night and flagged {len(at_risk_kids)} kids as at-risk at {chapter_name}.
 
-{kids_list}
+{briefing_block}
 
 These kids may need extra attention or a different learning approach this Sunday.
 Consider reaching out to their volunteers before the session.
 
-This digest was generated automatically every Sunday night.
-View full dashboard: https://impactbridge.vercel.app/dashboard
+This digest was generated automatically every Sunday night{" (summary written by AI from the model's reasons)" if source == "llm" else ""}.
+View full dashboard: {FRONTEND_URL}/dashboard
 
 U&I ImpactBridge
     """.strip()

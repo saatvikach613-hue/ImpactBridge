@@ -10,7 +10,7 @@ from app.models import (
 )
 from app.schemas import (
     SessionEventOut, SessionLogOut, BulkSessionLogCreate,
-    RsvpOut, RsvpUpdate
+    RsvpOut, RsvpUpdate, RsvpEmailResponse
 )
 from app.auth import get_current_user, require_coordinator
 
@@ -216,6 +216,45 @@ def update_rsvp(
         raise HTTPException(status_code=404, detail="No RSVP found")
 
     rsvp.status = update.status
+    rsvp.responded_at = datetime.utcnow()
+    db.commit()
+    db.refresh(rsvp)
+    return rsvp
+
+
+@router.post("/{session_id}/rsvp/{volunteer_id}/respond", response_model=RsvpOut)
+def respond_to_rsvp_from_email(
+    session_id: int,
+    volunteer_id: int,
+    body: RsvpEmailResponse,
+    db: Session = Depends(get_db),
+):
+    """
+    One-tap confirm/decline straight from the Thursday reminder email.
+    No login: the link carries an HMAC token bound to (session, volunteer),
+    so it can only be used for that exact pair. Idempotent: tapping twice
+    just re-saves the same answer.
+    """
+    from app.automation.rsvp_tokens import verify_rsvp
+
+    if body.status not in (RsvpStatus.confirmed, RsvpStatus.declined):
+        raise HTTPException(status_code=400, detail="Response must be confirmed or declined")
+
+    if not verify_rsvp(session_id, volunteer_id, body.token):
+        raise HTTPException(status_code=403, detail="This link is invalid or was not issued for you")
+
+    session = db.query(SessionEvent).filter_by(id=session_id).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    if session.session_date < date.today():
+        raise HTTPException(status_code=410, detail="This session has already happened")
+
+    rsvp = db.query(SessionRsvp).filter_by(session_id=session_id, volunteer_id=volunteer_id).first()
+    if not rsvp:
+        rsvp = SessionRsvp(session_id=session_id, volunteer_id=volunteer_id)
+        db.add(rsvp)
+
+    rsvp.status = body.status
     rsvp.responded_at = datetime.utcnow()
     db.commit()
     db.refresh(rsvp)

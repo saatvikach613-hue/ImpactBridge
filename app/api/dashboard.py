@@ -168,3 +168,91 @@ def get_all_chapters_summary(
             "at_risk_kids": at_risk,
         })
     return result
+
+
+@router.get("/adoption", tags=["dashboard"])
+def get_adoption_metrics(
+    weeks: int = 8,
+    chapter_id: int = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_coordinator)
+):
+    """
+    Is the automation actually being used, and did it help?
+
+    - Session log completion vs the ~70% pre-ImpactBridge baseline
+    - RSVP response / confirmation rates from the one-tap email links
+    - Estimated volunteer minutes saved and coordinator messages avoided
+    - Automated emails actually sent (from the audit log)
+
+    Window: past `weeks` weeks of sessions that have already happened.
+    """
+    from app.models import VolunteerKidAssignment, Chapter, AutomationLog
+    from app.metrics import compute_adoption
+
+    weeks = max(1, min(weeks, 52))
+    today = date.today()
+    since = today - timedelta(weeks=weeks)
+
+    # Chapters in scope
+    if chapter_id:
+        chapter_ids = [chapter_id]
+    else:
+        chapter_ids = [c.id for c in db.query(Chapter).filter_by(is_active=True).all()]
+
+    # Sessions that already happened in the window
+    sessions = db.query(SessionEvent).filter(
+        SessionEvent.chapter_id.in_(chapter_ids),
+        SessionEvent.session_date >= since,
+        SessionEvent.session_date < today,
+    ).all()
+    session_ids = [s.id for s in sessions]
+
+    # Expected logs = active kid assignments per chapter, per session
+    kids_per_chapter = dict(
+        db.query(Kid.chapter_id, func.count(Kid.id))
+        .filter(Kid.chapter_id.in_(chapter_ids), Kid.is_active == True)
+        .group_by(Kid.chapter_id).all()
+    )
+    expected_logs = sum(kids_per_chapter.get(s.chapter_id, 0) for s in sessions)
+
+    # Actual logs = distinct (session, kid) pairs logged
+    actual_logs = 0
+    if session_ids:
+        actual_logs = (
+            db.query(SessionLog.session_id, SessionLog.kid_id)
+            .filter(SessionLog.session_id.in_(session_ids))
+            .distinct()
+            .count()
+        )
+
+    # RSVP adoption
+    rsvps_total = rsvps_responded = rsvps_confirmed = 0
+    if session_ids:
+        rsvps_total = db.query(SessionRsvp).filter(SessionRsvp.session_id.in_(session_ids)).count()
+        rsvps_responded = db.query(SessionRsvp).filter(
+            SessionRsvp.session_id.in_(session_ids),
+            SessionRsvp.status != RsvpStatus.pending,
+        ).count()
+        rsvps_confirmed = db.query(SessionRsvp).filter(
+            SessionRsvp.session_id.in_(session_ids),
+            SessionRsvp.status == RsvpStatus.confirmed,
+        ).count()
+
+    # Emails actually sent by the automation in the window
+    automated_emails_sent = db.query(AutomationLog).filter(
+        AutomationLog.created_at >= since,
+        AutomationLog.status.like("sent%"),
+    ).count()
+
+    snapshot = compute_adoption(
+        window_weeks=weeks,
+        sessions_in_window=len(sessions),
+        expected_logs=expected_logs,
+        actual_logs=actual_logs,
+        rsvps_total=rsvps_total,
+        rsvps_responded=rsvps_responded,
+        rsvps_confirmed=rsvps_confirmed,
+        automated_emails_sent=automated_emails_sent,
+    )
+    return snapshot.to_dict()

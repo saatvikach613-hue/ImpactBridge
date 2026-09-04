@@ -129,6 +129,11 @@ class SessionEventOut(BaseModel):
 class RsvpUpdate(BaseModel):
     status: RsvpStatus
 
+class RsvpEmailResponse(BaseModel):
+    """One-tap response from the reminder email: status + signed link token."""
+    status: RsvpStatus
+    token: str
+
 class RsvpOut(BaseModel):
     id: int
     session_id: int

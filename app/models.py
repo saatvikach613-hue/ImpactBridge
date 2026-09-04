@@ -363,3 +363,40 @@ class Donation(Base):
     donor           = relationship("User", back_populates="donations")
     wishlist_item   = relationship("WishlistItem", back_populates="donations")
     fund_drive      = relationship("FundDrive", back_populates="donations")
+
+
+# ─────────────────────────────────────────────
+# AUTOMATION LOG — every automated email, one row
+# (email_service.py and /automation/logs were already written against
+#  this table, but the model itself was never defined, so logging
+#  silently no-op'd. Defined here so the audit trail actually exists.)
+# ─────────────────────────────────────────────
+
+class AutomationLog(Base):
+    __tablename__ = "automation_logs"
+
+    id           = Column(Integer, primary_key=True, index=True)
+    log_type     = Column(String(50), nullable=False, index=True)   # rsvp_reminder | coordinator_alert | donor_impact_card | at_risk_digest
+    recipient    = Column(String(200), nullable=True)
+    subject      = Column(String(300), nullable=True)
+    status       = Column(String(120), nullable=False)               # sent | sent_dev | failed | error: ...
+    body_preview = Column(Text, nullable=True)
+    created_at   = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+
+
+# ─────────────────────────────────────────────
+# AUTOMATION RUN — one row per scheduled job execution
+# Powers the "Automation Health" panel: last run, duration, outcome.
+# ─────────────────────────────────────────────
+
+class AutomationRun(Base):
+    __tablename__ = "automation_runs"
+
+    id           = Column(Integer, primary_key=True, index=True)
+    job_id       = Column(String(50), nullable=False, index=True)    # rsvp_reminders | unconfirmed_alert | ml_pipeline | at_risk_digest
+    triggered_by = Column(String(30), nullable=False, default="scheduler")  # scheduler | api | github_actions
+    status       = Column(String(20), nullable=False, default="running")    # running | success | failed
+    summary      = Column(Text, nullable=True)                        # short human-readable result, e.g. "sent 41, skipped 12"
+    error        = Column(Text, nullable=True)
+    started_at   = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+    finished_at  = Column(DateTime(timezone=True), nullable=True)

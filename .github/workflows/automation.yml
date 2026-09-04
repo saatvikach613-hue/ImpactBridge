@@ -1,0 +1,69 @@
+# External scheduler for ImpactBridge automation
+# ================================================
+# Why this exists: the backend's in-process APScheduler only fires while the
+# web process is awake. Free-tier hosts (Railway/Render) sleep idle services,
+# so Thursday's reminders could silently never go out.
+#
+# GitHub Actions cron is free, reliable, and independent of the dyno.
+# Each job calls the backend's existing /automation/trigger/* endpoint with
+# a shared secret. The backend records every run in `automation_runs`, so the
+# dashboard's Automation Health panel shows exactly what fired and when.
+#
+# Setup (one time):
+#   Repo → Settings → Secrets and variables → Actions
+#     BACKEND_URL         e.g. https://impactbridge-api.up.railway.app   (no trailing slash)
+#     AUTOMATION_API_KEY  same value as the backend's AUTOMATION_API_KEY env var
+#
+# Times below are UTC. IST = UTC+5:30, so:
+#   Thu 20:00 IST = Thu 14:30 UTC | Fri 08:00 IST = Fri 02:30 UTC
+#   Sun 23:00 IST = Sun 17:30 UTC | Mon 07:00 IST = Mon 01:30 UTC
+
+name: ImpactBridge automation
+
+on:
+  schedule:
+    - cron: "30 14 * * 4"   # Thu 20:00 IST — RSVP reminders
+    - cron: "30 2 * * 5"    # Fri 08:00 IST — unconfirmed volunteer alert
+    - cron: "30 17 * * 0"   # Sun 23:00 IST — ML pipeline
+    - cron: "30 1 * * 1"    # Mon 07:00 IST — at-risk digest
+  workflow_dispatch:
+    inputs:
+      job:
+        description: "Job to run now"
+        required: true
+        type: choice
+        options: [rsvp-reminders, unconfirmed-check, ml-pipeline, at-risk-digest]
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Pick job from schedule (or manual input)
+        id: pick
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "job=${{ github.event.inputs.job }}" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          case "${{ github.event.schedule }}" in
+            "30 14 * * 4") echo "job=rsvp-reminders"   >> "$GITHUB_OUTPUT" ;;
+            "30 2 * * 5")  echo "job=unconfirmed-check" >> "$GITHUB_OUTPUT" ;;
+            "30 17 * * 0") echo "job=ml-pipeline"       >> "$GITHUB_OUTPUT" ;;
+            "30 1 * * 1")  echo "job=at-risk-digest"    >> "$GITHUB_OUTPUT" ;;
+            *) echo "Unknown schedule" ; exit 1 ;;
+          esac
+
+      - name: Wake backend (free tiers sleep)
+        run: |
+          for i in 1 2 3 4 5 6; do
+            if curl -fsS --max-time 20 "${{ secrets.BACKEND_URL }}/automation/ping" >/dev/null; then
+              echo "backend awake"; exit 0
+            fi
+            echo "not up yet, retry $i"; sleep 15
+          done
+          echo "backend did not respond"; exit 1
+
+      - name: Trigger ${{ steps.pick.outputs.job }}
+        run: |
+          curl -fsS -X POST \
+            -H "X-Automation-Key: ${{ secrets.AUTOMATION_API_KEY }}" \
+            "${{ secrets.BACKEND_URL }}/automation/trigger/${{ steps.pick.outputs.job }}"

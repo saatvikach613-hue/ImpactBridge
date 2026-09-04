@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { fetchKids, fetchUpcomingSessions, submitSessionLogs, logout, getName, fetchPredictions, fetchKidHistory, fetchKidSessionHistory } from '../api/client';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 const ENGLISH_LEVELS = ['letter', 'word', 'sentence', 'story', 'advanced'];
 const MATH_LEVELS    = ['pre_number', 'number_recognition', 'basic_operations', 'advanced_operations', 'syllabus_aligned'];
@@ -56,6 +56,7 @@ export default function SessionPage() {
 
   useEffect(() => {
     loadDashboardData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
 async function handleSubmit() {
@@ -370,7 +371,6 @@ async function handleSubmit() {
             const kidLastLog = [...kidHistory].sort((a,b)=>new Date(a.logged_at)-new Date(b.logged_at)).slice(-1)[0] || null;
             
             // Priority: Current Live Choice > Last Saved Entry
-            const currentStatus = kidLiveRating || kidLastLog?.rating;
             
             // Build sandbox chart data
             const kidChart = [...kidHistory];
@@ -487,9 +487,9 @@ async function handleSubmit() {
                   <div style={{ marginTop: '20px', padding: '12px 16px', background: '#fffbeb', border: '1px solid #fef3c7', borderRadius: '10px', fontSize: '13px', color: '#92400e' }}>
                     💡 <strong>Instructional Tip:</strong> {kid.unlock_note}
                   </div>
-                ) : pred?.risk_reason ? (
+                ) : kidPred?.risk_reason ? (
                   <div style={{ marginTop: '20px', padding: '12px 16px', background: '#f3f4f6', border: '1px solid #e5e7eb', borderRadius: '10px', fontSize: '12px', color: '#6b7280' }}>
-                    🤖 <strong>ML Insight:</strong> {pred.risk_reason}
+                    🤖 <strong>ML Insight:</strong> {kidPred.risk_reason}
                   </div>
                 ) : null}
               </div>
