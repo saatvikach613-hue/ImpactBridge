@@ -1,3 +1,4 @@
+import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
@@ -15,6 +16,25 @@ load_dotenv()
 async def lifespan(app: FastAPI):
     """Start scheduler on startup, stop on shutdown."""
     Base.metadata.create_all(bind=engine)
+
+    # Optional first-boot seed for hosted demos where there's no shell access
+    # (e.g. Render free tier). Only runs when AUTO_SEED=true AND the users
+    # table is empty, so it can never wipe real data.
+    if os.getenv("AUTO_SEED", "").lower() in ("1", "true", "yes"):
+        from app.database import SessionLocal
+        from app.models import User
+        db = SessionLocal()
+        try:
+            is_empty = db.query(User).count() == 0
+        finally:
+            db.close()
+        if is_empty:
+            print("[AUTO_SEED] Empty database detected — seeding demo data...")
+            from scripts.seed import run_seed
+            run_seed()
+            print("[AUTO_SEED] Done.")
+        else:
+            print("[AUTO_SEED] Database already has data — skipping.")
 
     # Start the automation scheduler
     from app.automation.scheduler import start_scheduler, stop_scheduler
