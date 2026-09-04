@@ -43,7 +43,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000", FRONTEND_URL, *EXTRA_CORS_ORIGINS],
     # Also allow any Vercel preview deployment of this project
-    allow_origin_regex=r"https://impactbridge[a-z0-9-]*\.vercel\.app",
+    allow_origin_regex=r"https://impact-?bridge[a-z0-9-]*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

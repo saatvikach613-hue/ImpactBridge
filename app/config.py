@@ -19,7 +19,7 @@ def _clean_url(url: str) -> str:
 # Public URL of the deployed React frontend.
 # Used in every email link (RSVP confirm, dashboard, wishlist) and for CORS.
 FRONTEND_URL: str = _clean_url(
-    os.getenv("FRONTEND_URL", "https://impactbridge-saatvika.vercel.app")
+    os.getenv("FRONTEND_URL", "https://impact-bridge-saatvika.vercel.app")
 )
 
 # Extra origins allowed to call the API (comma separated), e.g. Vercel preview URLs.
