@@ -78,6 +78,7 @@ export const submitSessionLogs = async (id, logs) => {
 export const fetchDashboard   = () => getJson('/dashboard/');
 export const fetchAllChapters = () => getJson('/dashboard/chapters');
 export const fetchAdoption    = () => getJson('/dashboard/adoption');
+export const fetchAnalytics   = () => getJson('/dashboard/analytics');
 export const fetchPredictions = () => getJson('/ml/predictions');
 
 // ── Automation (coordinator only) ────────────────────────────────────────────

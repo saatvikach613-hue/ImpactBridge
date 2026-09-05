@@ -258,3 +258,184 @@ def get_adoption_metrics(
         automated_emails_sent=automated_emails_sent,
     )
     return snapshot.to_dict()
+
+
+@router.get("/analytics", tags=["dashboard"])
+def get_analytics(
+    chapter_id: int = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_coordinator)
+):
+    """
+    Everything the dashboard charts need, computed from the database.
+    (These used to be hardcoded sample arrays in the frontend.)
+
+    - volunteers:       reliability per volunteer from RSVP history
+    - attendance_trend: last 8 past sessions, kid + volunteer attendance %
+    - retention:        monthly active kids (enrolled and still active)
+    - fund_trend:       cumulative donations by month (falls back to the drive's raised total)
+    - progress_trend:   average level index taught per month, from session logs
+    - hygiene:          null — not instrumented yet; the UI labels it as sample data
+    """
+    from collections import defaultdict
+    from app.models import Chapter, VolunteerKidAssignment, Donation, FundDrive
+    from datetime import datetime
+
+    today = date.today()
+    if chapter_id:
+        chapter_ids = [chapter_id]
+    else:
+        chapter_ids = [c.id for c in db.query(Chapter).filter_by(is_active=True).all()]
+    chapter_names = dict(db.query(Chapter.id, Chapter.name).all())
+
+    past_sessions = (
+        db.query(SessionEvent)
+        .filter(SessionEvent.chapter_id.in_(chapter_ids), SessionEvent.session_date < today)
+        .order_by(SessionEvent.session_date)
+        .all()
+    )
+    past_ids = [s.id for s in past_sessions]
+    session_by_id = {s.id: s for s in past_sessions}
+
+    # ── Volunteers: reliability = confirmed / all RSVPs on past sessions ─────
+    volunteers_out = []
+    vols = db.query(User).filter(
+        User.chapter_id.in_(chapter_ids), User.role == UserRole.volunteer, User.is_active == True
+    ).all()
+    if past_ids:
+        rsvp_rows = (
+            db.query(SessionRsvp.volunteer_id, SessionRsvp.status, func.count(SessionRsvp.id))
+            .filter(SessionRsvp.session_id.in_(past_ids))
+            .group_by(SessionRsvp.volunteer_id, SessionRsvp.status)
+            .all()
+        )
+    else:
+        rsvp_rows = []
+    per_vol = defaultdict(lambda: {"confirmed": 0, "total": 0})
+    for vid, st, n in rsvp_rows:
+        per_vol[vid]["total"] += n
+        if st == RsvpStatus.confirmed:
+            per_vol[vid]["confirmed"] += n
+    kids_per_vol = dict(
+        db.query(VolunteerKidAssignment.volunteer_id, func.count(VolunteerKidAssignment.id))
+        .filter(VolunteerKidAssignment.is_active == True)
+        .group_by(VolunteerKidAssignment.volunteer_id).all()
+    )
+    for v in vols:
+        stats = per_vol.get(v.id, {"confirmed": 0, "total": 0})
+        total = stats["total"]
+        reliability = round(100 * stats["confirmed"] / total) if total else None
+        parts = (v.full_name or "").split()
+        short = f"{parts[0]} {parts[1][0]}." if len(parts) > 1 else (v.full_name or "Volunteer")
+        volunteers_out.append({
+            "id": v.id,
+            "name": short,
+            "reliability": reliability,
+            "sessions": total,
+            "missed": total - stats["confirmed"],
+            "kids": kids_per_vol.get(v.id, 0),
+            "chapter": (chapter_names.get(v.chapter_id) or "").split(" - ")[-1],
+        })
+    volunteers_out.sort(key=lambda x: (x["reliability"] is None, -(x["reliability"] or 0)))
+
+    # ── Attendance trend: last 8 past session dates ──────────────────────────
+    active_kids_per_chapter = dict(
+        db.query(Kid.chapter_id, func.count(Kid.id))
+        .filter(Kid.chapter_id.in_(chapter_ids), Kid.is_active == True)
+        .group_by(Kid.chapter_id).all()
+    )
+    dates = sorted({s.session_date for s in past_sessions})[-8:]
+    attendance_trend = []
+    for i, d in enumerate(dates):
+        sids = [s.id for s in past_sessions if s.session_date == d]
+        enrolled = sum(active_kids_per_chapter.get(session_by_id[sid].chapter_id, 0) for sid in sids)
+        kids_logged = (
+            db.query(SessionLog.session_id, SessionLog.kid_id)
+            .filter(SessionLog.session_id.in_(sids)).distinct().count()
+        ) if sids else 0
+        rs_total = db.query(SessionRsvp).filter(SessionRsvp.session_id.in_(sids)).count() if sids else 0
+        rs_conf = db.query(SessionRsvp).filter(
+            SessionRsvp.session_id.in_(sids), SessionRsvp.status == RsvpStatus.confirmed
+        ).count() if sids else 0
+        attendance_trend.append({
+            "week": f"W{i + 1}",
+            "date": str(d),
+            "kids": round(100 * kids_logged / enrolled) if enrolled else 0,
+            "volunteers": round(100 * rs_conf / rs_total) if rs_total else 0,
+        })
+
+    # ── Retention: kids enrolled by month-end and still active ───────────────
+    all_kids = db.query(Kid).filter(Kid.chapter_id.in_(chapter_ids)).all()
+    total_kids = len(all_kids)
+    retention = []
+    for k in range(5, -1, -1):
+        y, m = today.year, today.month - k
+        while m <= 0:
+            m += 12; y -= 1
+        month_end = date(y + (m == 12), (m % 12) + 1, 1) - timedelta(days=1)
+        enrolled = [x for x in all_kids if (x.enrolled_date or date.min) <= month_end]
+        active = sum(1 for x in enrolled if x.is_active)
+        retention.append({
+            "month": month_end.strftime("%b"),
+            "active": active,
+            "churned": len(enrolled) - active,
+            "enrolled": len(enrolled),
+        })
+
+    # ── Fund trend ───────────────────────────────────────────────────────────
+    drives = db.query(FundDrive).filter(FundDrive.chapter_id.in_(chapter_ids), FundDrive.is_active == True).all()
+    goal = sum(d.goal_amount for d in drives)
+    raised = sum(d.raised_amount or 0 for d in drives)
+    donations = (
+        db.query(Donation).filter(Donation.fund_drive_id.in_([d.id for d in drives]))
+        .order_by(Donation.donated_at).all()
+    ) if drives else []
+    fund_trend = []
+    if donations:
+        cum = 0.0
+        by_month = defaultdict(float)
+        for dn in donations:
+            by_month[dn.donated_at.strftime("%Y-%m")] += dn.amount
+        for ym in sorted(by_month):
+            cum += by_month[ym]
+            fund_trend.append({"month": datetime.strptime(ym, "%Y-%m").strftime("%b"), "raised": round(cum), "needed": round(goal)})
+        fund_source = "donations"
+    else:
+        start = min((d.start_date for d in drives), default=today)
+        fund_trend = [
+            {"month": start.strftime("%b"), "raised": 0, "needed": round(goal)},
+            {"month": today.strftime("%b"), "raised": round(raised), "needed": round(goal)},
+        ]
+        fund_source = "drive_totals"
+
+    # ── Progress trend: avg level index taught per month ─────────────────────
+    ENGLISH = ["letter", "word", "sentence", "story", "advanced"]
+    MATH = ["pre_number", "number_recognition", "basic_operations", "advanced_operations", "syllabus_aligned"]
+    progress = []
+    if past_ids:
+        rows = (
+            db.query(SessionEvent.session_date, SessionLog.subject, SessionLog.level_covered)
+            .join(SessionEvent, SessionEvent.id == SessionLog.session_id)
+            .filter(SessionLog.session_id.in_(past_ids), SessionLog.level_covered.isnot(None))
+            .all()
+        )
+        acc = defaultdict(list)
+        for d, subj, lvl in rows:
+            lvl_s = lvl.value if hasattr(lvl, "value") else str(lvl)
+            scale = ENGLISH if subj == "english" else MATH
+            if lvl_s in scale:
+                acc[d.strftime("%Y-%m")].append(scale.index(lvl_s))
+        for ym in sorted(acc)[-8:]:
+            vals = acc[ym]
+            progress.append({"month": datetime.strptime(ym, "%Y-%m").strftime("%b"), "avgLevel": round(sum(vals) / len(vals), 2)})
+
+    return {
+        "totals": {"kids": total_kids, "volunteers": len(vols), "fund_goal": round(goal), "fund_raised": round(raised)},
+        "volunteers": volunteers_out,
+        "attendance_trend": attendance_trend,
+        "retention": retention,
+        "fund_trend": fund_trend,
+        "fund_source": fund_source,
+        "progress_trend": progress,
+        "hygiene": None,  # not instrumented — UI shows sample data with a label
+    }

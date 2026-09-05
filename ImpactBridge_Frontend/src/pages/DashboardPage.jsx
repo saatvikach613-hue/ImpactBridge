@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import {
   fetchDashboard, fetchPredictions, fetchAllChapters,
-  fetchKids, logout, getName
+  fetchKids, fetchAnalytics, logout, getName
 } from '../api/client';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
@@ -18,6 +18,16 @@ const GREEN  = '#16a34a';
 const BLUE   = '#2563eb';
 const GRAY   = '#6b7280';
 
+
+// Filled by DashboardPage from /dashboard/analytics before any tab renders.
+let VOLUNTEER_DATA   = [];
+let ATTENDANCE_TREND = [];
+let CHURN_DATA       = [];
+let FUND_TREND       = [];
+let PROGRESS_TREND   = [];
+let TOTALS           = { kids: 0, volunteers: 0, fund_goal: 0, fund_raised: 0 };
+let FUND_SOURCE      = 'drive_totals';
+
 const ENGLISH_LEVELS = ['letter', 'word', 'sentence', 'story', 'advanced'];
 const MATH_LEVELS    = ['pre_number', 'number_recognition', 'basic_operations', 'advanced_operations', 'syllabus_aligned'];
 const LEVEL_LABELS   = {
@@ -26,50 +36,13 @@ const LEVEL_LABELS   = {
   advanced_operations: 'Adv Ops', syllabus_aligned: 'Syllabus',
 };
 
-// ── Synthetic analytics data (grounded in U&I 2024-25 numbers) ────────────────
-const VOLUNTEER_DATA = [
-  { name: 'Saatvika C.',   reliability: 95, sessions: 40, missed: 2,  kids: 2, chapter: 'Madhavadhara' },
-  { name: 'Meera R.',      reliability: 88, sessions: 40, missed: 5,  kids: 2, chapter: 'Madhavadhara' },
-  { name: 'Vikram N.',     reliability: 72, sessions: 40, missed: 11, kids: 2, chapter: 'Madhavadhara' },
-  { name: 'Ananya S.',     reliability: 65, sessions: 40, missed: 14, kids: 2, chapter: 'Gajuwaka'     },
-  { name: 'Rohit V.',      reliability: 90, sessions: 40, missed: 4,  kids: 2, chapter: 'Gajuwaka'     },
-  { name: 'Deepika R.',    reliability: 78, sessions: 40, missed: 9,  kids: 2, chapter: 'Gajuwaka'     },
-  { name: 'Suresh B.',     reliability: 60, sessions: 40, missed: 16, kids: 2, chapter: 'MVP Colony'   },
-  { name: 'Kavitha P.',    reliability: 85, sessions: 40, missed: 6,  kids: 2, chapter: 'MVP Colony'   },
-  { name: 'Aditya K.',     reliability: 92, sessions: 40, missed: 3,  kids: 2, chapter: 'MVP Colony'   },
-  { name: 'Priyanka I.',   reliability: 55, sessions: 40, missed: 18, kids: 2, chapter: 'Madhavadhara' },
-];
+// ── Analytics come from GET /dashboard/analytics (computed from the DB). ──────
+// Only hygiene is still sample data: it isn't instrumented yet, and the UI says so.
 
-const ATTENDANCE_TREND = [
-  { week: 'W1',  kids: 82, volunteers: 88 },
-  { week: 'W2',  kids: 78, volunteers: 85 },
-  { week: 'W3',  kids: 85, volunteers: 90 },
-  { week: 'W4',  kids: 80, volunteers: 82 },
-  { week: 'W5',  kids: 88, volunteers: 92 },
-  { week: 'W6',  kids: 75, volunteers: 78 },
-  { week: 'W7',  kids: 83, volunteers: 86 },
-  { week: 'W8',  kids: 86, volunteers: 89 },
-];
 
-const CHURN_DATA = [
-  { month: 'Sep', active: 106, churned: 0,  cumChurn: 0  },
-  { month: 'Oct', active: 104, churned: 2,  cumChurn: 2  },
-  { month: 'Nov', active: 102, churned: 2,  cumChurn: 4  },
-  { month: 'Dec', active: 100, churned: 2,  cumChurn: 6  },
-  { month: 'Jan', active: 99,  churned: 1,  cumChurn: 7  },
-  { month: 'Feb', active: 97,  churned: 2,  cumChurn: 9  },
-  { month: 'Mar', active: 96,  churned: 1,  cumChurn: 10 },
-  { month: 'Apr', active: 96,  churned: 0,  cumChurn: 10 },
-];
 
-const FUND_TREND = [
-  { month: 'Jan', raised: 4200,  needed: 16000 },
-  { month: 'Feb', raised: 7800,  needed: 16000 },
-  { month: 'Mar', raised: 11200, needed: 16000 },
-  { month: 'Apr', raised: 13920, needed: 16000 },
-];
 
-const HYGIENE_DATA = [
+const SAMPLE_HYGIENE_DATA = [  // sample — hygiene checks are not tracked in the app yet
   { category: 'Hand washing',  score: 82 },
   { category: 'Teeth brushing', score: 74 },
   { category: 'Nail cutting',   score: 68 },
@@ -77,16 +50,6 @@ const HYGIENE_DATA = [
   { category: 'Hair combing',   score: 79 },
 ];
 
-const PROGRESS_TREND = [
-  { month: 'Sep', avgLevel: 1.2 },
-  { month: 'Oct', avgLevel: 1.4 },
-  { month: 'Nov', avgLevel: 1.6 },
-  { month: 'Dec', avgLevel: 1.7 },
-  { month: 'Jan', avgLevel: 1.9 },
-  { month: 'Feb', avgLevel: 2.1 },
-  { month: 'Mar', avgLevel: 2.3 },
-  { month: 'Apr', avgLevel: 2.5 },
-];
 
 export default function DashboardPage() {
   const [dashboard, setDashboard]     = useState(null);
@@ -98,8 +61,15 @@ export default function DashboardPage() {
   const name = getName();
 
   useEffect(() => {
-    Promise.all([fetchDashboard(), fetchPredictions(), fetchAllChapters(), fetchKids()])
-      .then(([dash, preds, chaps, k]) => {
+    Promise.all([fetchDashboard(), fetchPredictions(), fetchAllChapters(), fetchKids(), fetchAnalytics()])
+      .then(([dash, preds, chaps, k, an]) => {
+        VOLUNTEER_DATA   = (an?.volunteers || []).filter(v => v.reliability !== null);
+        ATTENDANCE_TREND = an?.attendance_trend || [];
+        CHURN_DATA       = an?.retention || [];
+        FUND_TREND       = an?.fund_trend || [];
+        PROGRESS_TREND   = an?.progress_trend || [];
+        TOTALS           = an?.totals || TOTALS;
+        FUND_SOURCE      = an?.fund_source || FUND_SOURCE;
         setDashboard(dash);
         setPredictions(Array.isArray(preds) ? preds : []);
         setChapters(chaps);
@@ -115,11 +85,12 @@ export default function DashboardPage() {
   const atRiskVols = VOLUNTEER_DATA.filter(v => v.reliability < 70);
 
   // Computed KPIs
-  const avgReliability = Math.round(VOLUNTEER_DATA.reduce((s, v) => s + v.reliability, 0) / VOLUNTEER_DATA.length);
-  const retentionRate  = Math.round((CHURN_DATA[CHURN_DATA.length - 1].active / 106) * 100);
-  const fundingRatio   = Math.round((FUND_TREND[FUND_TREND.length - 1].raised / 16000) * 100);
-  const hygieneScore   = Math.round(HYGIENE_DATA.reduce((s, h) => s + h.score, 0) / HYGIENE_DATA.length);
-  const churnRate      = Math.round(((106 - CHURN_DATA[CHURN_DATA.length - 1].active) / 106) * 100);
+  const avgReliability = VOLUNTEER_DATA.length ? Math.round(VOLUNTEER_DATA.reduce((s, v) => s + v.reliability, 0) / VOLUNTEER_DATA.length) : 0;
+  const lastRet        = CHURN_DATA[CHURN_DATA.length - 1];
+  const retentionRate  = lastRet?.enrolled ? Math.round((lastRet.active / lastRet.enrolled) * 100) : 100;
+  const fundingRatio   = TOTALS.fund_goal ? Math.round((TOTALS.fund_raised / TOTALS.fund_goal) * 100) : 0;
+  const hygieneScore   = Math.round(SAMPLE_HYGIENE_DATA.reduce((s, h) => s + h.score, 0) / SAMPLE_HYGIENE_DATA.length);
+  const churnRate      = 100 - retentionRate;
 
   const TABS = [
     { id: 'home',       label: '🏠 Home' },
@@ -152,7 +123,7 @@ export default function DashboardPage() {
           </div>
           <div style={{ ...s.pipelineStrip, marginBottom: '20px' }}>
             <div style={s.pipelineDot} />
-            <span style={s.pipelineText}>ML · 106 predictions active</span>
+            <span style={s.pipelineText}>ML · {predictions.length} predictions active</span>
           </div>
 
           <nav style={s.nav}>
@@ -245,7 +216,7 @@ function AlertsTab({ highRisk, atRiskVols, stats, fundingRatio }) {
               <div style={{ ...s.alertDot, background: AMBER }} />
               <div style={{ flex: 1 }}>
                 <div style={s.alertTitle}>Fund drive at {fundingRatio}% — {100 - fundingRatio}% gap remaining</div>
-                <div style={s.alertDesc}>₹{(16000 - Math.round(16000 * fundingRatio / 100)).toLocaleString('en-IN')} still needed across chapters · Consider early fundraising campaign</div>
+                <div style={s.alertDesc}>₹{Math.max(0, TOTALS.fund_goal - TOTALS.fund_raised).toLocaleString('en-IN')} still needed across chapters · Consider early fundraising campaign</div>
               </div>
               <div style={{ ...s.alertBadge, background: '#fffbeb', color: AMBER }}>{fundingRatio}% funded</div>
             </div>
@@ -308,7 +279,7 @@ function KPIsTab({ stats, avgReliability, retentionRate, fundingRatio, hygieneSc
     {
       label:  'Student Retention Rate',
       value:  `${retentionRate}%`,
-      sub:    `${106 - Math.round(106 * retentionRate / 100)} kids churned since Sept · Churn rate ${churnRate}%`,
+      sub:    `${Math.max(0, TOTALS.kids - Math.round(TOTALS.kids * retentionRate / 100))} kids inactive · Churn rate ${churnRate}%`,
       trend:  retentionRate >= 90 ? '↑ Strong retention' : '↓ Monitor closely',
       color:  retentionRate >= 90 ? GREEN : AMBER,
       note:   'Kids active this month / kids enrolled in Sept · 4-week absence = churned',
@@ -324,7 +295,7 @@ function KPIsTab({ stats, avgReliability, retentionRate, fundingRatio, hygieneSc
     {
       label:  'Hygiene Compliance Score',
       value:  `${hygieneScore}%`,
-      sub:    'Avg across 5 hygiene categories · Monthly assessment',
+      sub:    'Sample data — not tracked in the app yet',
       trend:  hygieneScore >= 75 ? '↑ Good compliance' : '↓ Needs attention',
       color:  hygieneScore >= 75 ? GREEN : AMBER,
       note:   'Tracked monthly per child · Volunteer-assessed during life skills sessions',
@@ -498,15 +469,15 @@ function AnalysisTab({ predictions, kids, chapters }) {
         <div style={s.chartCard}>
           <div style={s.chartHeader}>
             <h3 style={s.chartTitle}>Hygiene Compliance Score</h3>
-            <span style={s.chartSub}>Monthly assessment · 5 categories</span>
+            <span style={{ ...s.chartSub, color: '#d97706' }}>Sample data — hygiene checks aren't tracked in the app yet</span>
           </div>
           <ResponsiveContainer width="100%" height={160}>
-            <BarChart data={HYGIENE_DATA} barSize={18}>
+            <BarChart data={SAMPLE_HYGIENE_DATA} barSize={18}>
               <XAxis dataKey="category" tick={{ fontSize: 9, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fontSize: 10, fill: '#9ca3af' }} axisLine={false} tickLine={false} domain={[0, 100]} />
               <Tooltip contentStyle={{ background: 'white', border: '1px solid #e5e7eb', borderRadius: '8px', fontSize: 12 }} formatter={(v) => [`${v}%`, 'Compliance']} />
               <Bar dataKey="score" name="Score %" radius={[4,4,0,0]}>
-                {HYGIENE_DATA.map((d, i) => <Cell key={i} fill={d.score >= 80 ? GREEN : d.score >= 70 ? AMBER : RED} />)}
+                {SAMPLE_HYGIENE_DATA.map((d, i) => <Cell key={i} fill={d.score >= 80 ? GREEN : d.score >= 70 ? AMBER : RED} />)}
               </Bar>
             </BarChart>
           </ResponsiveContainer>
@@ -663,15 +634,15 @@ function KidsTab({ predictions, kids }) {
       <div style={s.chartCard}>
         <div style={s.chartHeader}>
           <h3 style={s.chartTitle}>Hygiene Compliance by Category</h3>
-          <span style={s.chartSub}>Monthly assessment · Volunteer-reported</span>
+          <span style={{ ...s.chartSub, color: '#d97706' }}>Sample data — hygiene checks aren't tracked in the app yet</span>
         </div>
         <ResponsiveContainer width="100%" height={160}>
-          <BarChart data={HYGIENE_DATA} barSize={22}>
+          <BarChart data={SAMPLE_HYGIENE_DATA} barSize={22}>
             <XAxis dataKey="category" tick={{ fontSize: 10, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
             <YAxis tick={{ fontSize: 10, fill: '#9ca3af' }} axisLine={false} tickLine={false} domain={[0, 100]} />
             <Tooltip contentStyle={{ background: 'white', border: '1px solid #e5e7eb', borderRadius: '8px', fontSize: 12 }} formatter={(v) => [`${v}%`, 'Compliance']} />
             <Bar dataKey="score" name="Compliance %" radius={[4,4,0,0]}>
-              {HYGIENE_DATA.map((d, i) => <Cell key={i} fill={d.score >= 80 ? GREEN : d.score >= 70 ? AMBER : RED} />)}
+              {SAMPLE_HYGIENE_DATA.map((d, i) => <Cell key={i} fill={d.score >= 80 ? GREEN : d.score >= 70 ? AMBER : RED} />)}
             </Bar>
           </BarChart>
         </ResponsiveContainer>
@@ -685,9 +656,9 @@ function KidsTab({ predictions, kids }) {
 
 // ── FUNDS TAB ─────────────────────────────────────────────────────────────────
 function FundsTab({ stats }) {
-  const fundingGap  = 16000 - FUND_TREND[FUND_TREND.length - 1].raised;
-  const burnRate    = Math.round(FUND_TREND[FUND_TREND.length - 1].raised / 4);
-  const fundingPct  = Math.round((FUND_TREND[FUND_TREND.length - 1].raised / 16000) * 100);
+  const fundingGap  = Math.max(0, TOTALS.fund_goal - TOTALS.fund_raised);
+  const burnRate    = Math.round(TOTALS.fund_raised / Math.max(1, FUND_TREND.length));
+  const fundingPct  = TOTALS.fund_goal ? Math.round((TOTALS.fund_raised / TOTALS.fund_goal) * 100) : 0;
 
   return (
     <div style={s.content}>
@@ -698,7 +669,7 @@ function FundsTab({ stats }) {
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: '10px', marginBottom: '20px' }}>
         {[
-          { label: 'Raised so far',    value: `₹${FUND_TREND[FUND_TREND.length-1].raised.toLocaleString('en-IN')}`, color: GREEN },
+          { label: 'Raised so far',    value: `₹${TOTALS.fund_raised.toLocaleString('en-IN')}`, color: GREEN },
           { label: 'Funding gap',      value: `₹${fundingGap.toLocaleString('en-IN')}`,  color: RED   },
           { label: 'Monthly burn rate', value: `₹${burnRate.toLocaleString('en-IN')}`,   color: AMBER },
           { label: 'Funding ratio',    value: `${fundingPct}%`,                          color: GREEN },
@@ -779,7 +750,7 @@ function HomeTab({ stats, predictions, setActiveTab }) {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: '12px', marginBottom: '28px' }}>
         {[
           { label: 'Kids at risk',        value: highRisk,      color: '#dc2626', bg: '#fff5f5', tab: 'alerts'     },
-          { label: 'Volunteer reliability', value: `${Math.round(VOLUNTEER_DATA.reduce((s,v)=>s+v.reliability,0)/VOLUNTEER_DATA.length)}%`, color: '#d97706', bg: '#fffbeb', tab: 'volunteers' },
+          { label: 'Volunteer reliability', value: `${VOLUNTEER_DATA.length ? Math.round(VOLUNTEER_DATA.reduce((s,v)=>s+v.reliability,0)/VOLUNTEER_DATA.length) : 0}%`, color: '#d97706', bg: '#fffbeb', tab: 'volunteers' },
           { label: 'Fund drive',          value: `${fundingPct}%`, color: '#16a34a', bg: '#f0fdf4', tab: 'funds'   },
           { label: 'Student retention',   value: `${retention}%`,  color: '#2563eb', bg: '#eff6ff', tab: 'kpis'    },
         ].map(k => (
@@ -822,7 +793,7 @@ function HomeTab({ stats, predictions, setActiveTab }) {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
         {[
           { label: 'dbt transformation', value: '5 models · 16 tests', status: 'passing', color: '#16a34a' },
-          { label: 'ML predictions',     value: '106 kids · AUC-ROC 0.97', status: 'active', color: '#16a34a' },
+          { label: 'ML predictions',     value: `${predictions.length} kids scored · Random Forest + SMOTE`, status: predictions.length ? 'active' : 'pending', color: predictions.length ? '#16a34a' : '#d97706' },
           { label: 'Automation',         value: '4 jobs · Next run Sunday', status: 'scheduled', color: '#2563eb' },
         ].map(p => (
           <div key={p.label} style={{ background: 'white', border: '1px solid #e5e7eb', borderRadius: '10px', padding: '14px' }}>
