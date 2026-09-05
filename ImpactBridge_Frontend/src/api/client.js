@@ -6,7 +6,17 @@
 //               forwards relative calls to http://localhost:8000.
 // - Production: REACT_APP_API_URL is set in Vercel to the deployed backend.
 
-const API_BASE = (process.env.REACT_APP_API_URL || '').replace(/\/$/, '');
+// Deployed backend. Used automatically when the app is NOT running on localhost
+// and REACT_APP_API_URL wasn't provided at build time, so a missing Vercel env var
+// can't silently break the live demo (requests would otherwise hit Vercel itself).
+const DEFAULT_PROD_API = 'https://impactbridge-22jw.onrender.com';
+
+const isLocalhost = typeof window !== 'undefined'
+  && /^(localhost|127\.0\.0\.1)$/.test(window.location.hostname);
+
+const API_BASE = (
+  process.env.REACT_APP_API_URL || (isLocalhost ? '' : DEFAULT_PROD_API)
+).replace(/\/$/, '');
 
 const api = (path) => `${API_BASE}${path}`;
 
