@@ -47,6 +47,16 @@ from app.models import (
 )
 from passlib.context import CryptContext
 from datetime import date, timedelta, datetime
+
+# ── Relative dates ────────────────────────────────────────────────────────────
+# Everything is anchored to *today* so the demo is alive whenever it's seeded:
+#   • 43 past Sundays of sessions/logs  → ML features (last 4 weeks) have data
+#   • 1 upcoming Sunday with PENDING RSVPs → Thursday/Friday jobs have work to do
+#   • fund drive currently open          → donor portal shows a live drive
+TODAY        = date.today()
+NEXT_SUNDAY  = TODAY + timedelta(days=((6 - TODAY.weekday()) % 7 or 7))
+SEED_START   = NEXT_SUNDAY - timedelta(weeks=44 - 1)   # first Sunday, ~10 months ago
+ONBOARD_DATE = SEED_START - timedelta(days=90)         # volunteers/kids joined before sessions began
 import random
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -178,7 +188,7 @@ def create_coordinators(db: Session, chapters: list) -> list:
                 hashed_password=hash_password("coord123"),
                 role=UserRole.coordinator,
                 chapter_id=chapter.id,
-                joined_date=date(2023, 6, 1),
+                joined_date=ONBOARD_DATE - timedelta(days=90),
             )
             db.add(coord)
             coordinators.append(coord)
@@ -202,7 +212,7 @@ def create_volunteers(db: Session, chapters: list) -> list:
                 hashed_password=hash_password("vol123"),
                 role=UserRole.volunteer,
                 chapter_id=chapter.id,
-                joined_date=date(2023, 9, 1) + timedelta(days=random.randint(0, 30)),
+                joined_date=ONBOARD_DATE + timedelta(days=random.randint(0, 30)),
                 phone=f"+91 9{random.randint(100000000, 999999999)}",
             )
             db.add(vol)
@@ -241,7 +251,7 @@ def create_kids(db: Session, chapters: list) -> list:
                 learning_style=random.choice(LEARNING_STYLES),
                 interests=random.choice(INTERESTS),
                 unlock_note=random.choice(UNLOCK_NOTES),
-                enrolled_date=date(2023, 9, 1) + timedelta(days=random.randint(0, 30)),
+                enrolled_date=ONBOARD_DATE + timedelta(days=random.randint(0, 30)),
             )
             db.add(kid)
             kids.append(kid)
@@ -267,7 +277,7 @@ def create_assignments(db: Session, volunteers: list, kids: list, chapters: list
                 db.add(VolunteerKidAssignment(
                     volunteer_id=vol.id,
                     kid_id=kid.id,
-                    assigned_date=date(2023, 9, 3),
+                    assigned_date=SEED_START,
                 ))
                 assignments_created += 1
             kid_idx += SEED_CONFIG["kids_per_volunteer"]
@@ -276,8 +286,8 @@ def create_assignments(db: Session, volunteers: list, kids: list, chapters: list
 
 
 def create_sessions_and_logs(db: Session, chapters: list, volunteers: list, kids: list) -> None:
-    print("Creating 44 weeks of Sunday sessions...")
-    start_date = date(2023, 9, 3)
+    print(f"Creating 44 weeks of Sunday sessions ({SEED_START} → {NEXT_SUNDAY}, last one upcoming)...")
+    start_date = SEED_START
     total_logs = 0
     total_rsvps = 0
     total_sessions = 0
@@ -305,7 +315,19 @@ def create_sessions_and_logs(db: Session, chapters: list, volunteers: list, kids
             db.flush()
             total_sessions += 1
 
+            is_upcoming = session_date > TODAY
+
             for vol in chapter_vols:
+                if is_upcoming:
+                    # Next Sunday: nobody has answered yet — this is what the
+                    # Thursday reminder + Friday unconfirmed-alert jobs act on.
+                    db.add(SessionRsvp(
+                        session_id=event.id, volunteer_id=vol.id,
+                        status=RsvpStatus.pending, reminder_sent=False,
+                    ))
+                    total_rsvps += 1
+                    continue
+
                 showed_up = random.random() > SEED_CONFIG["no_show_rate"]
                 rsvp_status = RsvpStatus.confirmed if showed_up else RsvpStatus.declined
                 rsvp = SessionRsvp(
@@ -313,6 +335,7 @@ def create_sessions_and_logs(db: Session, chapters: list, volunteers: list, kids
                     volunteer_id=vol.id,
                     status=rsvp_status,
                     reminder_sent=True,
+                    responded_at=datetime.combine(session_date - timedelta(days=2), datetime.min.time()),
                 )
                 db.add(rsvp)
                 total_rsvps += 1
@@ -384,8 +407,8 @@ def create_fund_drives_and_wishlist(db: Session, chapters: list, kids: list) -> 
             title=f"Teach Program Resources Drive 2024 — {chapter.name}",
             goal_amount=SEED_CONFIG["fund_drive_goal"],
             raised_amount=round(SEED_CONFIG["fund_drive_goal"] * SEED_CONFIG["fund_drive_raised_pct"], 2),
-            start_date=date(2024, 1, 15),
-            end_date=date(2024, 3, 31),
+            start_date=TODAY - timedelta(days=60),
+            end_date=TODAY + timedelta(days=30),
             is_active=True,
         )
         db.add(drive)
