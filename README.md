@@ -11,6 +11,11 @@
 
 **Empowering U&I NGO with ML-Driven Operational Excellence**
 
+> **Live demo:** [impact-bridge-saatvika.vercel.app](https://impact-bridge-saatvika.vercel.app) · coordinator `coord_0_0@impactbridge.org` / `coord123` · volunteer `vol_0@impactbridge.org` / `vol123`
+> **Case study (7 pages, paper format):** [docs/CASE_STUDY.pdf](docs/CASE_STUDY.pdf) — problem, alternatives, design, automation, ML, adoption metrics, results, and limitations
+> **API docs:** [impactbridge-22jw.onrender.com/docs](https://impactbridge-22jw.onrender.com/docs) (free tier: first request after idle takes ~30 s)
+> **Start here in the app:** Dashboard → ⚙ **Automation** tab — job health, adoption vs. baseline, email audit log, and *Run now* for each job
+
 ---
 
 ## Why I built this
@@ -211,4 +216,6 @@ This wasn't built in one pass. A few real decisions and course corrections shape
 ---
 
 ## Credits & acknowledgments
+Full write-up: [docs/CASE_STUDY.pdf](docs/CASE_STUDY.pdf).
+
 Built for **U&I (You and I)**, India's largest volunteer-driven education NGO, based on their real 2024-25 operations.
