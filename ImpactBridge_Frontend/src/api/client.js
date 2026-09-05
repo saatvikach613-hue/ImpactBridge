@@ -14,9 +14,18 @@ const DEFAULT_PROD_API = 'https://impactbridge-22jw.onrender.com';
 const isLocalhost = typeof window !== 'undefined'
   && /^(localhost|127\.0\.0\.1)$/.test(window.location.hostname);
 
-const API_BASE = (
-  process.env.REACT_APP_API_URL || (isLocalhost ? '' : DEFAULT_PROD_API)
-).replace(/\/$/, '');
+function resolveApiBase() {
+  const configured = (process.env.REACT_APP_API_URL || '').trim().replace(/\/$/, '');
+  if (isLocalhost) return configured; // '' → CRA dev proxy to :8000
+  // Guard against a misconfigured value that points back at the frontend itself
+  // (e.g. the Vercel URL pasted by mistake) — that would 405 on every API call.
+  const pointsAtSelf = !configured
+    || configured === '/'
+    || configured.includes(window.location.host);
+  return pointsAtSelf ? DEFAULT_PROD_API : configured;
+}
+
+const API_BASE = resolveApiBase();
 
 const api = (path) => `${API_BASE}${path}`;
 
