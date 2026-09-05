@@ -30,7 +30,7 @@ class AdoptionSnapshot:
     window_weeks: int
     sessions_in_window: int
 
-    # Logging adoption
+    # Logging adoption (per volunteer-session: confirmed attendance → submitted a sheet)
     expected_logs: int
     actual_logs: int
     log_completion_rate: float | None

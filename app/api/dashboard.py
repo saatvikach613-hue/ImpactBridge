@@ -208,20 +208,22 @@ def get_adoption_metrics(
     ).all()
     session_ids = [s.id for s in sessions]
 
-    # Expected logs = active kid assignments per chapter, per session
-    kids_per_chapter = dict(
-        db.query(Kid.chapter_id, func.count(Kid.id))
-        .filter(Kid.chapter_id.in_(chapter_ids), Kid.is_active == True)
-        .group_by(Kid.chapter_id).all()
-    )
-    expected_logs = sum(kids_per_chapter.get(s.chapter_id, 0) for s in sessions)
-
-    # Actual logs = distinct (session, kid) pairs logged
-    actual_logs = 0
+    # "Session sheet completion", measured the same way the 70% baseline was:
+    #   expected = volunteer-sessions where the volunteer confirmed attendance
+    #   actual   = of those, how many submitted at least one session log
+    # (Counting per enrolled kid would penalise absences, which isn't adoption.)
+    expected_logs = actual_logs = 0
     if session_ids:
+        expected_logs = db.query(SessionRsvp).filter(
+            SessionRsvp.session_id.in_(session_ids),
+            SessionRsvp.status == RsvpStatus.confirmed,
+        ).count()
         actual_logs = (
-            db.query(SessionLog.session_id, SessionLog.kid_id)
-            .filter(SessionLog.session_id.in_(session_ids))
+            db.query(SessionLog.session_id, SessionLog.volunteer_id)
+            .join(SessionRsvp, (SessionRsvp.session_id == SessionLog.session_id)
+                               & (SessionRsvp.volunteer_id == SessionLog.volunteer_id))
+            .filter(SessionLog.session_id.in_(session_ids),
+                    SessionRsvp.status == RsvpStatus.confirmed)
             .distinct()
             .count()
         )

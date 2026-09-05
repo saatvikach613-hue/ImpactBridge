@@ -140,7 +140,7 @@ export default function AutomationTab() {
         {!adoption ? <div style={t.muted}>Loading…</div> : (
           <div style={t.kpiGrid}>
             <Kpi
-              label="Session log completion"
+              label="Session sheet completion"
               value={pct(adoption.log_completion_rate)}
               sub={adoption.log_completion_delta_pts === null ? 'no sessions yet'
                 : `${adoption.log_completion_delta_pts >= 0 ? '+' : ''}${adoption.log_completion_delta_pts} pts vs ${Math.round(adoption.log_completion_baseline * 100)}% baseline`}
@@ -155,7 +155,7 @@ export default function AutomationTab() {
             <Kpi
               label="Volunteer time saved"
               value={`${Math.round(adoption.volunteer_minutes_saved_est / 60)} h`}
-              sub={`${adoption.actual_logs} logs × (15 min → 30 s), estimate`}
+              sub={`${adoption.actual_logs} volunteer sessions logged × (15 min → 30 s), estimate`}
               color={GREEN}
             />
             <Kpi
